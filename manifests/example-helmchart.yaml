@@ -1,0 +1,11 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: traefik 
+  namespace: luther
+spec:
+  chart: stable/traefik
+  set:
+    rbac.enabled: "true"
+    ssl.enabled: "true"
+
