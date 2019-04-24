@@ -1,0 +1,13 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: helmcharts.helm.cattle.io
+  namespace: kube-system
+spec:
+  group: helm.cattle.io
+  version: v1
+  names:
+    kind: HelmChart
+    plural: helmcharts
+    singular: helmchart
+  scope: Namespaced

@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: helm-controller
+  labels:
+    name: helm-controller
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: helmcharts.helm.cattle.io
+  namespace: helm-controller
+spec:
+  group: helm.cattle.io
+  version: v1
+  names:
+    kind: HelmChart
+    plural: helmcharts
+    singular: helmchart
+  scope: Namespaced
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helm-controller
+  namespace: helm-controller
+  labels:
+    app: helm-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helm-controller
+  template:
+    metadata:
+      labels:
+        app: helm-controller
+    spec:
+      containers:
+        - name: helm-controller
+          image: rancher/helm-controller
+          command: ["helm-controller"]
+          args: ["--namespace", "helm-controller"]
