@@ -16,7 +16,7 @@ if echo $TAG | grep -q dirty; then
 fi
 
 mkdir -p dist/artifacts
-cp bin/helm-controller dist/artifacts/helm-controller{SUFFIX}
+cp bin/helm-controller dist/artifacts/helm-controller${SUFFIX}
 
 IMAGE=${REPO}/helm-controller:${TAG}
 DOCKERFILE=package/Dockerfile
