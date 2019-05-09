@@ -20,8 +20,8 @@ package fake
 
 import (
 	clientset "github.com/rancher/helm-controller/pkg/generated/clientset/versioned"
-	helmv1 "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/helm.cattle.io/v1"
-	fakehelmv1 "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/helm.cattle.io/v1/fake"
+	k3sv1 "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/k3s.cattle.io/v1"
+	fakek3sv1 "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/k3s.cattle.io/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -71,12 +71,12 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// HelmV1 retrieves the HelmV1Client
-func (c *Clientset) HelmV1() helmv1.HelmV1Interface {
-	return &fakehelmv1.FakeHelmV1{Fake: &c.Fake}
+// K3sV1 retrieves the K3sV1Client
+func (c *Clientset) K3sV1() k3sv1.K3sV1Interface {
+	return &fakek3sv1.FakeK3sV1{Fake: &c.Fake}
 }
 
-// Helm retrieves the HelmV1Client
-func (c *Clientset) Helm() helmv1.HelmV1Interface {
-	return &fakehelmv1.FakeHelmV1{Fake: &c.Fake}
+// K3s retrieves the K3sV1Client
+func (c *Clientset) K3s() k3sv1.K3sV1Interface {
+	return &fakek3sv1.FakeK3sV1{Fake: &c.Fake}
 }

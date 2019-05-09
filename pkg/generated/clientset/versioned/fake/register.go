@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	helmv1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	k3sv1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -31,7 +31,7 @@ var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
 var parameterCodec = runtime.NewParameterCodec(scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
-	helmv1.AddToScheme,
+	k3sv1.AddToScheme,
 }
 
 // AddToScheme adds all types of this clientset into the given scheme. This allows composition

@@ -19,28 +19,28 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	v1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
 	"github.com/rancher/helm-controller/pkg/generated/clientset/versioned/scheme"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
 )
 
-type HelmV1Interface interface {
+type K3sV1Interface interface {
 	RESTClient() rest.Interface
 	HelmChartsGetter
 }
 
-// HelmV1Client is used to interact with features provided by the helm.cattle.io group.
-type HelmV1Client struct {
+// K3sV1Client is used to interact with features provided by the k3s.cattle.io group.
+type K3sV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *HelmV1Client) HelmCharts(namespace string) HelmChartInterface {
+func (c *K3sV1Client) HelmCharts(namespace string) HelmChartInterface {
 	return newHelmCharts(c, namespace)
 }
 
-// NewForConfig creates a new HelmV1Client for the given config.
-func NewForConfig(c *rest.Config) (*HelmV1Client, error) {
+// NewForConfig creates a new K3sV1Client for the given config.
+func NewForConfig(c *rest.Config) (*K3sV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -49,12 +49,12 @@ func NewForConfig(c *rest.Config) (*HelmV1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &HelmV1Client{client}, nil
+	return &K3sV1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new HelmV1Client for the given config and
+// NewForConfigOrDie creates a new K3sV1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *HelmV1Client {
+func NewForConfigOrDie(c *rest.Config) *K3sV1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -62,9 +62,9 @@ func NewForConfigOrDie(c *rest.Config) *HelmV1Client {
 	return client
 }
 
-// New creates a new HelmV1Client for the given RESTClient.
-func New(c rest.Interface) *HelmV1Client {
-	return &HelmV1Client{c}
+// New creates a new K3sV1Client for the given RESTClient.
+func New(c rest.Interface) *K3sV1Client {
+	return &K3sV1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -82,7 +82,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *HelmV1Client) RESTClient() rest.Interface {
+func (c *K3sV1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

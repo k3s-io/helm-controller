@@ -21,10 +21,10 @@ package v1
 import (
 	time "time"
 
-	helmcattleiov1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	k3scattleiov1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
 	versioned "github.com/rancher/helm-controller/pkg/generated/clientset/versioned"
 	internalinterfaces "github.com/rancher/helm-controller/pkg/generated/informers/externalversions/internalinterfaces"
-	v1 "github.com/rancher/helm-controller/pkg/generated/listers/helm.cattle.io/v1"
+	v1 "github.com/rancher/helm-controller/pkg/generated/listers/k3s.cattle.io/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -61,16 +61,16 @@ func NewFilteredHelmChartInformer(client versioned.Interface, namespace string, 
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.HelmV1().HelmCharts(namespace).List(options)
+				return client.K3sV1().HelmCharts(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.HelmV1().HelmCharts(namespace).Watch(options)
+				return client.K3sV1().HelmCharts(namespace).Watch(options)
 			},
 		},
-		&helmcattleiov1.HelmChart{},
+		&k3scattleiov1.HelmChart{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,7 +81,7 @@ func (f *helmChartInformer) defaultInformer(client versioned.Interface, resyncPe
 }
 
 func (f *helmChartInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&helmcattleiov1.HelmChart{}, f.defaultInformer)
+	return f.factory.InformerFor(&k3scattleiov1.HelmChart{}, f.defaultInformer)
 }
 
 func (f *helmChartInformer) Lister() v1.HelmChartLister {
