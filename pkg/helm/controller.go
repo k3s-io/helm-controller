@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	helmv1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	"sort"
+
+	helmv1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
 	batchcontroller "github.com/rancher/helm-controller/pkg/generated/controllers/batch/v1"
 	corecontroller "github.com/rancher/helm-controller/pkg/generated/controllers/core/v1"
-	helmcontroller "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
+	helmcontroller "github.com/rancher/helm-controller/pkg/generated/controllers/k3s.cattle.io/v1"
 	rbaccontroller "github.com/rancher/helm-controller/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/objectset"
@@ -20,7 +22,6 @@ import (
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sort"
 )
 
 var (
@@ -28,16 +29,16 @@ var (
 )
 
 type Controller struct {
-	namespace		string
-	helmController 	helmcontroller.HelmChartController
-	jobsCache 		batchcontroller.JobCache
-	apply			apply.Apply
+	namespace      string
+	helmController helmcontroller.HelmChartController
+	jobsCache      batchcontroller.JobCache
+	apply          apply.Apply
 }
 
 const (
-	image     = "rancher/klipper-helm:v0.1.5"
-	label     = "helmcharts.helm.cattle.io/chart"
-	name      = "helm-controller"
+	image = "rancher/klipper-helm:v0.1.5"
+	label = "helmcharts.k3s.cattle.io/chart"
+	name  = "helm-controller"
 )
 
 func Register(ctx context.Context, apply apply.Apply,
@@ -69,8 +70,8 @@ func Register(ctx context.Context, apply apply.Apply,
 
 	controller := &Controller{
 		helmController: helms,
-		jobsCache:  jobs.Cache(),
-		apply: apply,
+		jobsCache:      jobs.Cache(),
+		apply:          apply,
 	}
 
 	helms.OnChange(ctx, name, controller.OnHelmChanged)
@@ -104,7 +105,7 @@ func (c *Controller) OnHelmChanged(key string, chart *helmv1.HelmChart) (*helmv1
 	return c.helmController.Update(chartCopy)
 }
 
-func (c *Controller) OnHelmRemove (key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
+func (c *Controller) OnHelmRemove(key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
 	if chart.Spec.Chart == "" {
 		return chart, nil
 	}
