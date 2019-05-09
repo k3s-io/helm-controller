@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"sort"
 
 	helmv1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
@@ -197,7 +198,7 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap) {
 			},
 		},
 	}
-
+	setProxyEnv(job)
 	configMap := configMap(chart)
 	if configMap == nil {
 		return job, nil
@@ -327,4 +328,30 @@ func keys(val map[string]intstr.IntOrString) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func setProxyEnv(job *batch.Job) {
+	proxySysEnv := []string{
+		"all_proxy",
+		"ALL_PROXY",
+		"http_proxy",
+		"HTTP_PROXY",
+		"https_proxy",
+		"HTTPS_PROXY",
+		"no_proxy",
+		"NO_PROXY",
+	}
+	for _, proxyEnv := range proxySysEnv {
+		proxyEnvValue := os.Getenv(proxyEnv)
+		if len(proxyEnvValue) == 0 {
+			continue
+		}
+		envar := core.EnvVar{
+			Name:  proxyEnv,
+			Value: proxyEnvValue,
+		}
+		job.Spec.Template.Spec.Containers[0].Env = append(
+			job.Spec.Template.Spec.Containers[0].Env,
+			envar)
+	}
 }
