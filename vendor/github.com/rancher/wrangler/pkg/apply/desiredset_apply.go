@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/rancher/wrangler/pkg/apply/injectors"
-
 	"github.com/pkg/errors"
+	"github.com/rancher/wrangler/pkg/apply/injectors"
 	"github.com/rancher/wrangler/pkg/objectset"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -49,7 +48,7 @@ func (o *desiredSet) getRateLimit(labelHash string) flowcontrol.RateLimiter {
 	} else {
 		rl = rls[labelHash]
 		if rl == nil {
-			rl = flowcontrol.NewTokenBucketRateLimiter(4.0/60.0, 10)
+			rl = flowcontrol.NewTokenBucketRateLimiter(o.ratelimitingQps, 10)
 			rls[labelHash] = rl
 		}
 	}

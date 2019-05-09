@@ -21,7 +21,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	v1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -52,9 +52,9 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=helm.cattle.io, Version=v1
+	// Group=k3s.cattle.io, Version=v1
 	case v1.SchemeGroupVersion.WithResource("helmcharts"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Helm().V1().HelmCharts().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.K3s().V1().HelmCharts().Informer()}, nil
 
 	}
 

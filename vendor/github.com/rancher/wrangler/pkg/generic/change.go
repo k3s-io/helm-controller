@@ -29,8 +29,8 @@ func UpdateOnChange(updater Updater, handler Handler) Handler {
 		}
 
 		if oldMeta.GetResourceVersion() == newMeta.GetResourceVersion() && !equality.Semantic.DeepEqual(obj, copyObj) {
-			newObj, _ := updater(copyObj)
-			if newObj != nil {
+			newObj, err := updater(copyObj)
+			if newObj != nil && err == nil {
 				copyObj = newObj
 			}
 		}

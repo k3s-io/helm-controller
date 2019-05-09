@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	"github.com/rancher/wrangler/pkg/controller-gen"
+	v1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
+	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 	batch "k8s.io/api/batch/v1"
-	rbac "k8s.io/api/rbac/v1"
 	core "k8s.io/api/core/v1"
+	rbac "k8s.io/api/rbac/v1"
 )
 
 func main() {
@@ -14,7 +14,7 @@ func main() {
 		OutputPackage: "github.com/rancher/helm-controller/pkg/generated",
 		Boilerplate:   "hack/boilerplate.go.txt",
 		Groups: map[string]args.Group{
-			"helm.cattle.io": {
+			"k3s.cattle.io": {
 				Types: []interface{}{
 					v1.HelmChart{},
 				},

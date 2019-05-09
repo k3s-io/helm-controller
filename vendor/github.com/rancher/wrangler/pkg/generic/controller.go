@@ -18,6 +18,7 @@ package generic
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -112,7 +113,9 @@ func (c *Controller) processNextWorkItem() bool {
 	}
 
 	if err := c.processSingleItem(obj); err != nil {
-		utilruntime.HandleError(err)
+		if !strings.Contains(err.Error(), "please apply your changes to the latest version and try again") {
+			utilruntime.HandleError(err)
+		}
 		return true
 	}
 

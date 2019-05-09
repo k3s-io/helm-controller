@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/rancher/mapper"
+	"github.com/rancher/wrangler/pkg/merr"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -138,7 +138,7 @@ func (o *ObjectSet) AddErr(err error) {
 }
 
 func (o *ObjectSet) Err() error {
-	return mapper.NewErrors(o.errs...)
+	return merr.NewErrors(o.errs...)
 }
 
 func (o *ObjectSet) Len() int {
