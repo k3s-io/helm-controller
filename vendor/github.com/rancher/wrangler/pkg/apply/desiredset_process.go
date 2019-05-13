@@ -5,7 +5,7 @@ import (
 	"sort"
 
 	"github.com/pkg/errors"
-	"github.com/rancher/mapper"
+	"github.com/rancher/wrangler/pkg/merr"
 	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/sirupsen/logrus"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
@@ -68,9 +68,9 @@ func (o *desiredSet) adjustNamespace(gvk schema.GroupVersionKind, objs map[objec
 func (o *desiredSet) createPatcher(client dynamic.NamespaceableResourceInterface) Patcher {
 	return func(namespace, name string, pt types2.PatchType, data []byte) (object runtime.Object, e error) {
 		if namespace != "" {
-			return client.Namespace(namespace).Patch(name, pt, data, v1.UpdateOptions{})
+			return client.Namespace(namespace).Patch(name, pt, data, v1.PatchOptions{})
 		}
-		return client.Patch(name, pt, data, v1.UpdateOptions{})
+		return client.Patch(name, pt, data, v1.PatchOptions{})
 	}
 }
 
@@ -222,7 +222,7 @@ func list(informer cache.SharedIndexInformer, client dynamic.NamespaceableResour
 			}
 		}
 
-		return objs, mapper.NewErrors(errs...)
+		return objs, merr.NewErrors(errs...)
 	}
 
 	err := cache.ListAllByNamespace(informer.GetIndexer(), "", selector, func(obj interface{}) {
@@ -234,5 +234,5 @@ func list(informer cache.SharedIndexInformer, client dynamic.NamespaceableResour
 		errs = append(errs, err)
 	}
 
-	return objs, mapper.NewErrors(errs...)
+	return objs, merr.NewErrors(errs...)
 }
