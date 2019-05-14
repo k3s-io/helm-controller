@@ -38,6 +38,6 @@ spec:
     spec:
       containers:
         - name: helm-controller
-          image: rancher/helm-controller:v0.1.1
+          image: rancher/helm-controller:v0.1.2
           command: ["helm-controller"]
           args: ["--namespace", "helm-controller"]
