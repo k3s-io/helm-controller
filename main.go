@@ -70,11 +70,6 @@ func run(c *cli.Context) error {
 	namespace := c.String("namespace")
 	threadiness := c.Int("threads")
 
-	if "" == kubeconfig && "" == masterURL {
-		klog.Info("A working k8s kubeconfig or masterurl is requred.")
-		return nil
-	}
-
 	if threadiness <= 0 {
 		klog.Infof("Can not start with thread count of %d, please pass a proper thread count.", threadiness)
 		return nil
@@ -92,7 +87,7 @@ func run(c *cli.Context) error {
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
-		klog.Fatalf("Error building kubeconfig: %s", err.Error())
+		klog.Fatalf("Error building config from flags: %s", err.Error())
 	}
 
 	helms, err := helmv1.NewFactoryFromConfigWithNamespace(cfg, namespace)
