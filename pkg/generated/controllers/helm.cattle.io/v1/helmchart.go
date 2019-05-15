@@ -21,10 +21,10 @@ package v1
 import (
 	"context"
 
-	v1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
-	clientset "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/k3s.cattle.io/v1"
-	informers "github.com/rancher/helm-controller/pkg/generated/informers/externalversions/k3s.cattle.io/v1"
-	listers "github.com/rancher/helm-controller/pkg/generated/listers/k3s.cattle.io/v1"
+	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	clientset "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/helm.cattle.io/v1"
+	informers "github.com/rancher/helm-controller/pkg/generated/informers/externalversions/helm.cattle.io/v1"
+	listers "github.com/rancher/helm-controller/pkg/generated/listers/helm.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/generic"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -130,8 +130,8 @@ func UpdateHelmChartOnChange(updater generic.Updater, handler HelmChartHandler) 
 			copyObj = newObj
 		}
 		if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-			newObj, err := updater(copyObj)
-			if newObj != nil && err == nil {
+			newObj, _ := updater(copyObj)
+			if newObj != nil {
 				copyObj = newObj.(*v1.HelmChart)
 			}
 		}

@@ -19,9 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
-	clientset "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/k3s.cattle.io/v1"
-	informers "github.com/rancher/helm-controller/pkg/generated/informers/externalversions/k3s.cattle.io/v1"
+	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	clientset "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/helm.cattle.io/v1"
+	informers "github.com/rancher/helm-controller/pkg/generated/informers/externalversions/helm.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/generic"
 )
 
@@ -29,7 +29,7 @@ type Interface interface {
 	HelmChart() HelmChartController
 }
 
-func New(controllerManager *generic.ControllerManager, client clientset.K3sV1Interface,
+func New(controllerManager *generic.ControllerManager, client clientset.HelmV1Interface,
 	informers informers.Interface) Interface {
 	return &version{
 		controllerManager: controllerManager,
@@ -41,7 +41,7 @@ func New(controllerManager *generic.ControllerManager, client clientset.K3sV1Int
 type version struct {
 	controllerManager *generic.ControllerManager
 	informers         informers.Interface
-	client            clientset.K3sV1Interface
+	client            clientset.HelmV1Interface
 }
 
 func (c *version) HelmChart() HelmChartController {

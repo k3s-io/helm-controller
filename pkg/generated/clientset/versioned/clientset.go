@@ -19,7 +19,7 @@ limitations under the License.
 package versioned
 
 import (
-	k3sv1 "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/k3s.cattle.io/v1"
+	helmv1 "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/helm.cattle.io/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -27,27 +27,27 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	K3sV1() k3sv1.K3sV1Interface
+	HelmV1() helmv1.HelmV1Interface
 	// Deprecated: please explicitly pick a version if possible.
-	K3s() k3sv1.K3sV1Interface
+	Helm() helmv1.HelmV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	k3sV1 *k3sv1.K3sV1Client
+	helmV1 *helmv1.HelmV1Client
 }
 
-// K3sV1 retrieves the K3sV1Client
-func (c *Clientset) K3sV1() k3sv1.K3sV1Interface {
-	return c.k3sV1
+// HelmV1 retrieves the HelmV1Client
+func (c *Clientset) HelmV1() helmv1.HelmV1Interface {
+	return c.helmV1
 }
 
-// Deprecated: K3s retrieves the default version of K3sClient.
+// Deprecated: Helm retrieves the default version of HelmClient.
 // Please explicitly pick a version.
-func (c *Clientset) K3s() k3sv1.K3sV1Interface {
-	return c.k3sV1
+func (c *Clientset) Helm() helmv1.HelmV1Interface {
+	return c.helmV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -66,7 +66,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.k3sV1, err = k3sv1.NewForConfig(&configShallowCopy)
+	cs.helmV1, err = helmv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.k3sV1 = k3sv1.NewForConfigOrDie(c)
+	cs.helmV1 = helmv1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -91,7 +91,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.k3sV1 = k3sv1.New(c)
+	cs.helmV1 = helmv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

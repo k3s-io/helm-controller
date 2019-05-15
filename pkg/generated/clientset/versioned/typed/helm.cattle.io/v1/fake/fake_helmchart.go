@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	k3scattleiov1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
+	helmcattleiov1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,29 +30,29 @@ import (
 
 // FakeHelmCharts implements HelmChartInterface
 type FakeHelmCharts struct {
-	Fake *FakeK3sV1
+	Fake *FakeHelmV1
 	ns   string
 }
 
-var helmchartsResource = schema.GroupVersionResource{Group: "k3s.cattle.io", Version: "v1", Resource: "helmcharts"}
+var helmchartsResource = schema.GroupVersionResource{Group: "helm.cattle.io", Version: "v1", Resource: "helmcharts"}
 
-var helmchartsKind = schema.GroupVersionKind{Group: "k3s.cattle.io", Version: "v1", Kind: "HelmChart"}
+var helmchartsKind = schema.GroupVersionKind{Group: "helm.cattle.io", Version: "v1", Kind: "HelmChart"}
 
 // Get takes name of the helmChart, and returns the corresponding helmChart object, and an error if there is any.
-func (c *FakeHelmCharts) Get(name string, options v1.GetOptions) (result *k3scattleiov1.HelmChart, err error) {
+func (c *FakeHelmCharts) Get(name string, options v1.GetOptions) (result *helmcattleiov1.HelmChart, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(helmchartsResource, c.ns, name), &k3scattleiov1.HelmChart{})
+		Invokes(testing.NewGetAction(helmchartsResource, c.ns, name), &helmcattleiov1.HelmChart{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*k3scattleiov1.HelmChart), err
+	return obj.(*helmcattleiov1.HelmChart), err
 }
 
 // List takes label and field selectors, and returns the list of HelmCharts that match those selectors.
-func (c *FakeHelmCharts) List(opts v1.ListOptions) (result *k3scattleiov1.HelmChartList, err error) {
+func (c *FakeHelmCharts) List(opts v1.ListOptions) (result *helmcattleiov1.HelmChartList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(helmchartsResource, helmchartsKind, c.ns, opts), &k3scattleiov1.HelmChartList{})
+		Invokes(testing.NewListAction(helmchartsResource, helmchartsKind, c.ns, opts), &helmcattleiov1.HelmChartList{})
 
 	if obj == nil {
 		return nil, err
@@ -62,8 +62,8 @@ func (c *FakeHelmCharts) List(opts v1.ListOptions) (result *k3scattleiov1.HelmCh
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &k3scattleiov1.HelmChartList{ListMeta: obj.(*k3scattleiov1.HelmChartList).ListMeta}
-	for _, item := range obj.(*k3scattleiov1.HelmChartList).Items {
+	list := &helmcattleiov1.HelmChartList{ListMeta: obj.(*helmcattleiov1.HelmChartList).ListMeta}
+	for _, item := range obj.(*helmcattleiov1.HelmChartList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -79,43 +79,43 @@ func (c *FakeHelmCharts) Watch(opts v1.ListOptions) (watch.Interface, error) {
 }
 
 // Create takes the representation of a helmChart and creates it.  Returns the server's representation of the helmChart, and an error, if there is any.
-func (c *FakeHelmCharts) Create(helmChart *k3scattleiov1.HelmChart) (result *k3scattleiov1.HelmChart, err error) {
+func (c *FakeHelmCharts) Create(helmChart *helmcattleiov1.HelmChart) (result *helmcattleiov1.HelmChart, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(helmchartsResource, c.ns, helmChart), &k3scattleiov1.HelmChart{})
+		Invokes(testing.NewCreateAction(helmchartsResource, c.ns, helmChart), &helmcattleiov1.HelmChart{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*k3scattleiov1.HelmChart), err
+	return obj.(*helmcattleiov1.HelmChart), err
 }
 
 // Update takes the representation of a helmChart and updates it. Returns the server's representation of the helmChart, and an error, if there is any.
-func (c *FakeHelmCharts) Update(helmChart *k3scattleiov1.HelmChart) (result *k3scattleiov1.HelmChart, err error) {
+func (c *FakeHelmCharts) Update(helmChart *helmcattleiov1.HelmChart) (result *helmcattleiov1.HelmChart, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(helmchartsResource, c.ns, helmChart), &k3scattleiov1.HelmChart{})
+		Invokes(testing.NewUpdateAction(helmchartsResource, c.ns, helmChart), &helmcattleiov1.HelmChart{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*k3scattleiov1.HelmChart), err
+	return obj.(*helmcattleiov1.HelmChart), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeHelmCharts) UpdateStatus(helmChart *k3scattleiov1.HelmChart) (*k3scattleiov1.HelmChart, error) {
+func (c *FakeHelmCharts) UpdateStatus(helmChart *helmcattleiov1.HelmChart) (*helmcattleiov1.HelmChart, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(helmchartsResource, "status", c.ns, helmChart), &k3scattleiov1.HelmChart{})
+		Invokes(testing.NewUpdateSubresourceAction(helmchartsResource, "status", c.ns, helmChart), &helmcattleiov1.HelmChart{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*k3scattleiov1.HelmChart), err
+	return obj.(*helmcattleiov1.HelmChart), err
 }
 
 // Delete takes name of the helmChart and deletes it. Returns an error if one occurs.
 func (c *FakeHelmCharts) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(helmchartsResource, c.ns, name), &k3scattleiov1.HelmChart{})
+		Invokes(testing.NewDeleteAction(helmchartsResource, c.ns, name), &helmcattleiov1.HelmChart{})
 
 	return err
 }
@@ -124,17 +124,17 @@ func (c *FakeHelmCharts) Delete(name string, options *v1.DeleteOptions) error {
 func (c *FakeHelmCharts) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(helmchartsResource, c.ns, listOptions)
 
-	_, err := c.Fake.Invokes(action, &k3scattleiov1.HelmChartList{})
+	_, err := c.Fake.Invokes(action, &helmcattleiov1.HelmChartList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched helmChart.
-func (c *FakeHelmCharts) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *k3scattleiov1.HelmChart, err error) {
+func (c *FakeHelmCharts) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *helmcattleiov1.HelmChart, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(helmchartsResource, c.ns, name, pt, data, subresources...), &k3scattleiov1.HelmChart{})
+		Invokes(testing.NewPatchSubresourceAction(helmchartsResource, c.ns, name, pt, data, subresources...), &helmcattleiov1.HelmChart{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*k3scattleiov1.HelmChart), err
+	return obj.(*helmcattleiov1.HelmChart), err
 }

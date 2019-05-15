@@ -130,8 +130,8 @@ func UpdateClusterRoleBindingOnChange(updater generic.Updater, handler ClusterRo
 			copyObj = newObj
 		}
 		if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-			newObj, err := updater(copyObj)
-			if newObj != nil && err == nil {
+			newObj, _ := updater(copyObj)
+			if newObj != nil {
 				copyObj = newObj.(*v1.ClusterRoleBinding)
 			}
 		}

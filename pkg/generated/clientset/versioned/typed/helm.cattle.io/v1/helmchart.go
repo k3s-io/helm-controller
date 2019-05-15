@@ -21,7 +21,7 @@ package v1
 import (
 	"time"
 
-	v1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
+	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
 	scheme "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -56,7 +56,7 @@ type helmCharts struct {
 }
 
 // newHelmCharts returns a HelmCharts
-func newHelmCharts(c *K3sV1Client, namespace string) *helmCharts {
+func newHelmCharts(c *HelmV1Client, namespace string) *helmCharts {
 	return &helmCharts{
 		client: c.RESTClient(),
 		ns:     namespace,
