@@ -8,10 +8,10 @@ import (
 	"os"
 	"sort"
 
-	helmv1 "github.com/rancher/helm-controller/pkg/apis/k3s.cattle.io/v1"
+	helmv1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
 	batchcontroller "github.com/rancher/helm-controller/pkg/generated/controllers/batch/v1"
 	corecontroller "github.com/rancher/helm-controller/pkg/generated/controllers/core/v1"
-	helmcontroller "github.com/rancher/helm-controller/pkg/generated/controllers/k3s.cattle.io/v1"
+	helmcontroller "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	rbaccontroller "github.com/rancher/helm-controller/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/objectset"
@@ -38,7 +38,7 @@ type Controller struct {
 
 const (
 	image = "rancher/klipper-helm:v0.1.5"
-	label = "helmcharts.k3s.cattle.io/chart"
+	label = "helmcharts.helm.cattle.io/chart"
 	name  = "helm-controller"
 )
 
