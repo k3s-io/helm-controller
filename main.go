@@ -8,11 +8,11 @@ import (
 	"context"
 	"os"
 
-	batchv1 "github.com/rancher/helm-controller/pkg/generated/controllers/batch"
-	corev1 "github.com/rancher/helm-controller/pkg/generated/controllers/core"
-	helmv1 "github.com/rancher/helm-controller/pkg/generated/controllers/k3s.cattle.io"
-	rbacv1 "github.com/rancher/helm-controller/pkg/generated/controllers/rbac"
+	helmv1 "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io"
 	helmcontroller "github.com/rancher/helm-controller/pkg/helm"
+	batchv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch"
+	corev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core"
+	rbacv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/signals"
 	"github.com/rancher/wrangler/pkg/start"
@@ -118,7 +118,7 @@ func run(c *cli.Context) error {
 	objectSetApply := apply.New(discoverClient, apply.NewClientFactory(cfg))
 
 	helmcontroller.Register(ctx, objectSetApply,
-		helms.K3s().V1().HelmChart(),
+		helms.Helm().V1().HelmChart(),
 		batches.Batch().V1().Job(),
 		rbacs.Rbac().V1().ClusterRoleBinding(),
 		cores.Core().V1().ServiceAccount())
