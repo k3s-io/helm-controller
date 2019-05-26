@@ -1,10 +1,14 @@
 package helm
 
 import (
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	jobsv1 "github.com/rancher/helm-controller/pkg/generated/controllers/batch/v1"
-	jobsMock "github.com/rancher/helm-controller/pkg/generated/controllers/batch/v1/fakes"
 	helmMock "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io/v1/fakes"
+	jobsv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1"
+	jobsMock "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1/fakes"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/apply/injectors"
 	"github.com/rancher/wrangler/pkg/objectset"
@@ -14,9 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"testing"
-	"time"
-	"strings"
 )
 
 func TestHelmControllerOnChange(t *testing.T) {
@@ -37,7 +38,7 @@ func TestHelmControllerOnRemove(t *testing.T) {
 	chart.DeletionTimestamp = &deleteTime
 	helmChart, _ := controller.OnHelmRemove(key, chart)
 	assert.Equal("traefik", helmChart.Name)
-	assert.Equal( "kube-system", helmChart.Namespace)
+	assert.Equal("kube-system", helmChart.Namespace)
 }
 
 func TestInstallJob(t *testing.T) {
@@ -81,7 +82,7 @@ func NewChart() *v1.HelmChart {
 	return v1.NewHelmChart("kube-system", "traefik", v1.HelmChart{
 		Spec: v1.HelmChartSpec{
 			Chart: "stable/traefik",
-			Set: set,
+			Set:   set,
 		},
 	})
 }
@@ -94,7 +95,7 @@ func NewMockHelmController() Controller {
 	}
 
 	jobs := &jobsMock.JobControllerMock{
-		CacheFunc: func () jobsv1.JobCache {
+		CacheFunc: func() jobsv1.JobCache {
 			return &jobsMock.JobCacheMock{
 				GetFunc: func(namespace string, name string) (*batchv1.Job, error) {
 					return &batchv1.Job{
@@ -109,12 +110,13 @@ func NewMockHelmController() Controller {
 
 	return Controller{
 		helmController: helms,
-		jobsCache:  jobs.Cache(),
-		apply: &ApplyMock{},
+		jobsCache:      jobs.Cache(),
+		apply:          &ApplyMock{},
 	}
 }
 
-type ApplyMock struct {}
+type ApplyMock struct{}
+
 func (a ApplyMock) Apply(set *objectset.ObjectSet) error {
 	return nil
 }

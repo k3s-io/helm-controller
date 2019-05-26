@@ -6,11 +6,13 @@ package main
 
 import (
 	"context"
-	batchv1 "github.com/rancher/helm-controller/pkg/generated/controllers/batch"
-	corev1 "github.com/rancher/helm-controller/pkg/generated/controllers/core"
+	"os"
+
 	helmv1 "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io"
-	rbacv1 "github.com/rancher/helm-controller/pkg/generated/controllers/rbac"
 	helmcontroller "github.com/rancher/helm-controller/pkg/helm"
+	batchv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch"
+	corev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core"
+	rbacv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/signals"
 	"github.com/rancher/wrangler/pkg/start"
@@ -18,7 +20,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
-	"os"
 )
 
 var (

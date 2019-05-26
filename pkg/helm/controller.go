@@ -9,10 +9,10 @@ import (
 	"sort"
 
 	helmv1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	batchcontroller "github.com/rancher/helm-controller/pkg/generated/controllers/batch/v1"
-	corecontroller "github.com/rancher/helm-controller/pkg/generated/controllers/core/v1"
 	helmcontroller "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
-	rbaccontroller "github.com/rancher/helm-controller/pkg/generated/controllers/rbac/v1"
+	batchcontroller "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1"
+	corecontroller "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
+	rbaccontroller "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/rancher/wrangler/pkg/relatedresource"
