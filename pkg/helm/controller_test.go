@@ -9,14 +9,10 @@ import (
 	helmMock "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io/v1/fakes"
 	jobsv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1"
 	jobsMock "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1/fakes"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/apply/injectors"
-	"github.com/rancher/wrangler/pkg/objectset"
+	"github.com/rancher/wrangler/pkg/apply/fake"
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -111,37 +107,6 @@ func NewMockHelmController() Controller {
 	return Controller{
 		helmController: helms,
 		jobsCache:      jobs.Cache(),
-		apply:          &ApplyMock{},
+		apply:          &fake.FakeApply{},
 	}
-}
-
-type ApplyMock struct{}
-
-func (a ApplyMock) Apply(set *objectset.ObjectSet) error {
-	return nil
-}
-
-func (a ApplyMock) WithCacheTypes(igs ...apply.InformerGetter) apply.Apply {
-	return a
-}
-func (a ApplyMock) WithSetID(id string) apply.Apply {
-	return a
-}
-func (a ApplyMock) WithOwner(obj runtime.Object) apply.Apply {
-	return a
-}
-func (a ApplyMock) WithInjector(injs ...injectors.ConfigInjector) apply.Apply {
-	return a
-}
-func (a ApplyMock) WithInjectorName(injs ...string) apply.Apply {
-	return a
-}
-func (a ApplyMock) WithPatcher(gvk schema.GroupVersionKind, patchers apply.Patcher) apply.Apply {
-	return a
-}
-func (a ApplyMock) WithStrictCaching() apply.Apply {
-	return a
-}
-func (a ApplyMock) WithDefaultNamespace(ns string) apply.Apply {
-	return a
 }
