@@ -5,7 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 
 	cgargs "github.com/rancher/wrangler/pkg/controller-gen/args"
 	"github.com/rancher/wrangler/pkg/controller-gen/generators"
@@ -22,7 +25,6 @@ import (
 	"k8s.io/gengo/args"
 	dp "k8s.io/gengo/examples/deepcopy-gen/generators"
 	"k8s.io/gengo/types"
-	"k8s.io/klog"
 )
 
 func Run(opts cgargs.Options) {
@@ -44,7 +46,6 @@ func Run(opts cgargs.Options) {
 		}
 
 		genericArgs.OutputBase = tempDir
-
 		defer os.RemoveAll(tempDir)
 	}
 	customArgs.OutputBase = genericArgs.OutputBase
@@ -56,7 +57,7 @@ func Run(opts cgargs.Options) {
 		clientgenerators.DefaultNameSystem(),
 		clientGen.Packages,
 	); err != nil {
-		klog.Fatalf("Error: %v", err)
+		logrus.Fatalf("Error: %v", err)
 	}
 
 	groups := map[string]bool{}
@@ -67,41 +68,52 @@ func Run(opts cgargs.Options) {
 	}
 
 	if len(groups) == 0 {
+		if err := copyGoPathToModules(customArgs); err != nil {
+			logrus.Fatalf("go modules copy failed: %v", err)
+		}
+
+		if err := clientGen.GenerateMocks(); err != nil {
+			logrus.Errorf("mocks failed: %v", err)
+			return
+		}
+
 		return
 	}
 
 	if err := copyGoPathToModules(customArgs); err != nil {
-		klog.Fatalf("go modules copy failed: %v", err)
+		logrus.Fatalf("go modules copy failed: %v", err)
 	}
 
 	if err := generateDeepcopy(groups, customArgs); err != nil {
-		klog.Fatalf("deepcopy failed: %v", err)
+		logrus.Fatalf("deepcopy failed: %v", err)
 	}
 
 	if err := generateClientset(groups, customArgs); err != nil {
-		klog.Fatalf("clientset failed: %v", err)
+		logrus.Fatalf("clientset failed: %v", err)
 	}
 
 	if err := generateListers(groups, customArgs); err != nil {
-		klog.Fatalf("listers failed: %v", err)
+		logrus.Fatalf("listers failed: %v", err)
 	}
 
 	if err := generateInformers(groups, customArgs); err != nil {
-		klog.Fatalf("informers failed: %v", err)
+		logrus.Fatalf("informers failed: %v", err)
 	}
 
 	if err := copyGoPathToModules(customArgs); err != nil {
-		klog.Fatalf("go modules copy failed: %v", err)
+		logrus.Fatalf("go modules copy failed: %v", err)
 	}
 
 	if err := clientGen.GenerateMocks(); err != nil {
-		klog.Errorf("mocks failed: %v", err)
+		logrus.Errorf("mocks failed: %v", err)
 		return
 	}
+}
 
-	if err := copyGoPathToModules(customArgs); err != nil {
-		klog.Fatalf("go modules copy failed: %v", err)
-	}
+func sourcePackagePath(customArgs *cgargs.CustomArgs, pkgName string) string {
+	pkgSplit := strings.Split(pkgName, string(os.PathSeparator))
+	pkg := filepath.Join(customArgs.OutputBase, strings.Join(pkgSplit[:3], string(os.PathSeparator)))
+	return pkg
 }
 
 //until k8s code-gen supports gopath
@@ -109,12 +121,14 @@ func copyGoPathToModules(customArgs *cgargs.CustomArgs) error {
 
 	pathsToCopy := map[string]bool{}
 	for _, types := range customArgs.TypesByGroup {
-		 for _, names := range types {
-		 	pkgSplit := strings.Split(names.Package, string(os.PathSeparator))
-		 	pkg := filepath.Join(customArgs.OutputBase, strings.Join(pkgSplit[:3], string(os.PathSeparator)))
+		for _, names := range types {
+			pkg := sourcePackagePath(customArgs, names.Package)
 			pathsToCopy[pkg] = true
 		}
 	}
+
+	pkg := sourcePackagePath(customArgs, customArgs.Package)
+	pathsToCopy[pkg] = true
 
 	for pkg, _ := range pathsToCopy {
 		if _, err := os.Stat(pkg); os.IsNotExist(err) {
@@ -192,10 +206,20 @@ func generateClientset(groups map[string]bool, customArgs *cgargs.CustomArgs) er
 	args.OutputPackagePath = filepath.Join(customArgs.Package, "clientset")
 	args.GoHeaderFilePath = customArgs.Options.Boilerplate
 
-	for gv, names := range customArgs.TypesByGroup {
+	var order []schema.GroupVersion
+
+	for gv := range customArgs.TypesByGroup {
 		if !groups[gv.Group] {
 			continue
 		}
+		order = append(order, gv)
+	}
+	sort.Slice(order, func(i, j int) bool {
+		return order[i].Group < order[j].Group
+	})
+
+	for _, gv := range order {
+		names := customArgs.TypesByGroup[gv]
 		args.InputDirs = append(args.InputDirs, names[0].Package)
 		clientSetArgs.Groups = append(clientSetArgs.Groups, types2.GroupVersions{
 			PackageName: gv.Group,
