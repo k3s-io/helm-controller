@@ -28,8 +28,6 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	HelmV1() helmv1.HelmV1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Helm() helmv1.HelmV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -41,12 +39,6 @@ type Clientset struct {
 
 // HelmV1 retrieves the HelmV1Client
 func (c *Clientset) HelmV1() helmv1.HelmV1Interface {
-	return c.helmV1
-}
-
-// Deprecated: Helm retrieves the default version of HelmClient.
-// Please explicitly pick a version.
-func (c *Clientset) Helm() helmv1.HelmV1Interface {
 	return c.helmV1
 }
 

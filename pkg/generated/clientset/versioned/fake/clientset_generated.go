@@ -75,8 +75,3 @@ var _ clientset.Interface = &Clientset{}
 func (c *Clientset) HelmV1() helmv1.HelmV1Interface {
 	return &fakehelmv1.FakeHelmV1{Fake: &c.Fake}
 }
-
-// Helm retrieves the HelmV1Client
-func (c *Clientset) Helm() helmv1.HelmV1Interface {
-	return &fakehelmv1.FakeHelmV1{Fake: &c.Fake}
-}

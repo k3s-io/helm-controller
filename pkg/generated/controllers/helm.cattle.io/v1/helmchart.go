@@ -130,8 +130,8 @@ func UpdateHelmChartOnChange(updater generic.Updater, handler HelmChartHandler) 
 			copyObj = newObj
 		}
 		if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-			newObj, _ := updater(copyObj)
-			if newObj != nil {
+			newObj, err := updater(copyObj)
+			if newObj != nil && err == nil {
 				copyObj = newObj.(*v1.HelmChart)
 			}
 		}
@@ -159,7 +159,7 @@ func (c *helmChartController) OnRemove(ctx context.Context, name string, sync He
 }
 
 func (c *helmChartController) Enqueue(namespace, name string) {
-	c.controllerManager.Enqueue(c.gvk, namespace, name)
+	c.controllerManager.Enqueue(c.gvk, c.informer.Informer(), namespace, name)
 }
 
 func (c *helmChartController) Informer() cache.SharedIndexInformer {
