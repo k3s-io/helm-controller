@@ -121,7 +121,8 @@ func run(c *cli.Context) error {
 		helms.Helm().V1().HelmChart(),
 		batches.Batch().V1().Job(),
 		rbacs.Rbac().V1().ClusterRoleBinding(),
-		cores.Core().V1().ServiceAccount())
+		cores.Core().V1().ServiceAccount(),
+		cores.Core().V1().ConfigMap())
 
 	if err := start.All(ctx, threadiness, helms, batches, rbacs, cores); err != nil {
 		klog.Fatalf("Error starting: %s", err.Error())
