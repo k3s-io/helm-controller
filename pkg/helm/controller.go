@@ -303,9 +303,6 @@ func args(chart *helmv1.HelmChart) []string {
 	if spec.TargetNamespace != "" {
 		args = append(args, "--namespace", spec.TargetNamespace)
 	}
-	if spec.Repo != "" {
-		args = append(args, "--repo", spec.Repo)
-	}
 	if spec.Version != "" {
 		args = append(args, "--version", spec.Version)
 	}
