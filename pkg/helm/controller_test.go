@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
 	helmMock "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io/v1/fakes"
 	jobsv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1"
 	jobsMock "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1/fakes"
@@ -58,7 +58,7 @@ func TestDeleteJob(t *testing.T) {
 func TestInstallArgs(t *testing.T) {
 	assert := assert.New(t)
 	stringArgs := strings.Join(args(NewChart()), " ")
-	assert.Equal("install --name traefik stable/traefik --set-string rbac.enabled=true --set-string ssl.enabled=true", stringArgs)
+	assert.Equal("install --name traefik stable/traefik --set-string acme.dnsProvider.name=cloudflare --set rbac.enabled=true --set ssl.enabled=false", stringArgs)
 }
 
 func TestDeleteArgs(t *testing.T) {
@@ -73,7 +73,8 @@ func TestDeleteArgs(t *testing.T) {
 func NewChart() *v1.HelmChart {
 	var set = make(map[string]intstr.IntOrString)
 	set["rbac.enabled"] = intstr.IntOrString{StrVal: "true"}
-	set["ssl.enabled"] = intstr.IntOrString{StrVal: "true"}
+	set["ssl.enabled"] = intstr.IntOrString{StrVal: "false"}
+	set["acme.dnsProvider.name"] = intstr.IntOrString{StrVal: "cloudflare"}
 
 	return v1.NewHelmChart("kube-system", "traefik", v1.HelmChart{
 		Spec: v1.HelmChartSpec{
