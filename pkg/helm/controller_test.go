@@ -58,7 +58,7 @@ func TestDeleteJob(t *testing.T) {
 func TestInstallArgs(t *testing.T) {
 	assert := assert.New(t)
 	stringArgs := strings.Join(args(NewChart()), " ")
-	assert.Equal("install --name traefik stable/traefik --set-string rbac.enabled=true --set-string ssl.enabled=true", stringArgs)
+	assert.Equal("install --set-string rbac.enabled=true --set-string ssl.enabled=true", stringArgs)
 }
 
 func TestDeleteArgs(t *testing.T) {
@@ -67,7 +67,7 @@ func TestDeleteArgs(t *testing.T) {
 	deleteTime := v12.NewTime(time.Time{})
 	chart.DeletionTimestamp = &deleteTime
 	stringArgs := strings.Join(args(chart), " ")
-	assert.Equal("delete --purge traefik", stringArgs)
+	assert.Equal("delete", stringArgs)
 }
 
 func NewChart() *v1.HelmChart {
