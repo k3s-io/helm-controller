@@ -5,37 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	helmMock "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io/v1/fakes"
-	jobsv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1"
-	jobsMock "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1/fakes"
-	"github.com/rancher/wrangler/pkg/apply/fake"
+	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/stretchr/testify/assert"
-	batchv1 "k8s.io/api/batch/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
-
-func TestHelmControllerOnChange(t *testing.T) {
-	assert := assert.New(t)
-	controller := NewMockHelmController()
-	chart := NewChart()
-	key := chart.Namespace + "/" + chart.Name
-	helmChart, _ := controller.OnHelmChanged(key, NewChart())
-	assert.Equal("helm-install-traefik", helmChart.Status.JobName)
-}
-
-func TestHelmControllerOnRemove(t *testing.T) {
-	assert := assert.New(t)
-	controller := NewMockHelmController()
-	chart := NewChart()
-	key := chart.Namespace + "/" + chart.Name
-	deleteTime := v12.NewTime(time.Time{})
-	chart.DeletionTimestamp = &deleteTime
-	helmChart, _ := controller.OnHelmRemove(key, chart)
-	assert.Equal("traefik", helmChart.Name)
-	assert.Equal("kube-system", helmChart.Namespace)
-}
 
 func TestInstallJob(t *testing.T) {
 	assert := assert.New(t)
@@ -81,32 +55,4 @@ func NewChart() *v1.HelmChart {
 			Set:   set,
 		},
 	})
-}
-
-func NewMockHelmController() Controller {
-	helms := &helmMock.HelmChartControllerMock{
-		UpdateFunc: func(in1 *v1.HelmChart) (*v1.HelmChart, error) {
-			return in1, nil
-		},
-	}
-
-	jobs := &jobsMock.JobControllerMock{
-		CacheFunc: func() jobsv1.JobCache {
-			return &jobsMock.JobCacheMock{
-				GetFunc: func(namespace string, name string) (*batchv1.Job, error) {
-					return &batchv1.Job{
-						Status: batchv1.JobStatus{
-							Succeeded: 0,
-						},
-					}, nil
-				},
-			}
-		},
-	}
-
-	return Controller{
-		helmController: helms,
-		jobsCache:      jobs.Cache(),
-		apply:          &fake.FakeApply{},
-	}
 }
