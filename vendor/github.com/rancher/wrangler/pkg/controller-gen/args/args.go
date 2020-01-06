@@ -21,6 +21,7 @@ type Options struct {
 type Group struct {
 	Types            []interface{}
 	GenerateTypes    bool
+	GenerateClients  bool
 	PackageName      string
 	ClientSetPackage string
 	ListersPackage   string
