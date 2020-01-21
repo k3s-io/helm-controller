@@ -32,7 +32,7 @@ func TestDeleteJob(t *testing.T) {
 func TestInstallArgs(t *testing.T) {
 	assert := assert.New(t)
 	stringArgs := strings.Join(args(NewChart()), " ")
-	assert.Equal("install --set-string rbac.enabled=true --set-string ssl.enabled=true", stringArgs)
+	assert.Equal("install --set-string acme.dnsProvider.name=cloudflare --set rbac.enabled=true --set ssl.enabled=false", stringArgs)
 }
 
 func TestDeleteArgs(t *testing.T) {
@@ -47,7 +47,8 @@ func TestDeleteArgs(t *testing.T) {
 func NewChart() *v1.HelmChart {
 	var set = make(map[string]intstr.IntOrString)
 	set["rbac.enabled"] = intstr.IntOrString{StrVal: "true"}
-	set["ssl.enabled"] = intstr.IntOrString{StrVal: "true"}
+	set["ssl.enabled"] = intstr.IntOrString{StrVal: "false"}
+	set["acme.dnsProvider.name"] = intstr.IntOrString{StrVal: "cloudflare"}
 
 	return v1.NewHelmChart("kube-system", "traefik", v1.HelmChart{
 		Spec: v1.HelmChartSpec{
