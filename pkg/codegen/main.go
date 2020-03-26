@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	"github.com/rancher/wrangler/pkg/controller-gen"
+	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	controllergen "github.com/rancher/wrangler/pkg/controller-gen"
 	"github.com/rancher/wrangler/pkg/controller-gen/args"
 )
 
