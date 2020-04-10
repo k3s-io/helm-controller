@@ -17,12 +17,12 @@ import (
 )
 
 func (f *Framework) setupController(ctx context.Context) error {
-	_, err := f.ClientSet.CoreV1().Namespaces().Create(ctx, f.getNS(), metav1.CreateOptions{})
+	_, err := f.ClientSet.CoreV1().Namespaces().Create(f.getNS())
 	if err != nil {
 		return err
 	}
 
-	_, err = f.ClientSet.RbacV1().ClusterRoleBindings().Create(ctx, f.getCrb(), metav1.CreateOptions{})
+	_, err = f.ClientSet.RbacV1().ClusterRoleBindings().Create(f.getCrb())
 	if err != nil {
 		return err
 	}
@@ -31,13 +31,13 @@ func (f *Framework) setupController(ctx context.Context) error {
 		return err
 	}
 
-	_, err = f.ClientSet.CoreV1().ServiceAccounts(f.Namespace).Create(ctx, f.getSa(), metav1.CreateOptions{})
+	_, err = f.ClientSet.CoreV1().ServiceAccounts(f.Namespace).Create(f.getSa())
 	if err != nil {
 		return err
 	}
 
 	err = wait.Poll(time.Second, 15*time.Second, func() (bool, error) {
-		_, err := f.ClientSet.CoreV1().ServiceAccounts(f.Namespace).Get(ctx, f.Name, metav1.GetOptions{})
+		_, err := f.ClientSet.CoreV1().ServiceAccounts(f.Namespace).Get(f.Name, metav1.GetOptions{})
 		if err == nil {
 			return true, nil
 		}
@@ -53,7 +53,7 @@ func (f *Framework) setupController(ctx context.Context) error {
 		return err
 	}
 
-	_, err = f.ClientSet.AppsV1().Deployments(f.Namespace).Create(context.TODO(), f.getDeployment(), metav1.CreateOptions{})
+	_, err = f.ClientSet.AppsV1().Deployments(f.Namespace).Create(f.getDeployment())
 	return err
 }
 
@@ -155,17 +155,17 @@ func (f *Framework) teardownController(ctx context.Context) error {
 			return err
 		}
 	}
-	err = f.ClientSet.RbacV1().ClusterRoleBindings().Delete(ctx, f.Name, metav1.DeleteOptions{})
+	err = f.ClientSet.RbacV1().ClusterRoleBindings().Delete(f.Name, &metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 
-	err = f.crdFactory.CRDClient.ApiextensionsV1().CustomResourceDefinitions().Delete(ctx, helm.CRDName, metav1.DeleteOptions{})
+	err = f.crdFactory.CRDClient.ApiextensionsV1().CustomResourceDefinitions().Delete(helm.CRDName, &metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
 
-	err = f.ClientSet.CoreV1().Namespaces().Delete(ctx, f.Namespace, metav1.DeleteOptions{})
+	err = f.ClientSet.CoreV1().Namespaces().Delete(f.Namespace, &metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}

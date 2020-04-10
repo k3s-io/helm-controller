@@ -6,7 +6,6 @@ import (
 
 	"github.com/rancher/helm-controller/pkg/helm"
 	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/schemas/openapi"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -93,31 +92,21 @@ func errExit(msg string, err error) {
 
 func getCRD() ([]crd.CRD, error) {
 	var crds []crd.CRD
-	for _, crdFn := range []func() (*crd.CRD, error){
+	for _, crdFn := range []func() (crd.CRD, error){
 		CRD,
 	} {
 		crdef, err := crdFn()
 		if err != nil {
 			return nil, err
 		}
-		crds = append(crds, *crdef)
+		crds = append(crds, crdef)
 	}
 
 	return crds, nil
 }
 
-func CRD() (*crd.CRD, error) {
-	prototype := helmapiv1.NewHelmChart("", "", helmapiv1.HelmChart{})
-	schema, err := openapi.ToOpenAPIFromStruct(*prototype)
-	if err != nil {
-		return nil, err
-	}
-	return &crd.CRD{
-		GVK:        prototype.GroupVersionKind(),
-		PluralName: helmapiv1.HelmChartResourceName,
-		Status:     true,
-		Schema:     schema,
-	}, nil
+func CRD() (crd.CRD, error) {
+	return crd.FromGV(helmapiv1.SchemeGroupVersion, "HelmChart"), nil
 }
 
 func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set map[string]intstr.IntOrString) *helmapiv1.HelmChart {
@@ -142,7 +131,7 @@ func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set m
 func (f *Framework) WaitForRelease(chart *helmapiv1.HelmChart, labelSelector labels.Selector, timeout time.Duration, count int) (secrets []corev1.Secret, err error) {
 
 	return secrets, wait.Poll(5*time.Second, timeout, func() (bool, error) {
-		list, err := f.ClientSet.CoreV1().Secrets(chart.Namespace).List(context.TODO(), metav1.ListOptions{
+		list, err := f.ClientSet.CoreV1().Secrets(chart.Namespace).List(metav1.ListOptions{
 			LabelSelector: labelSelector.String(),
 		})
 		if err != nil {
@@ -154,13 +143,13 @@ func (f *Framework) WaitForRelease(chart *helmapiv1.HelmChart, labelSelector lab
 }
 
 func (f *Framework) CreateHelmChart(chart *helmapiv1.HelmChart, namespace string) (*helmapiv1.HelmChart, error) {
-	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Create(context.TODO(), chart, metav1.CreateOptions{})
+	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Create(chart)
 }
 
 func (f *Framework) UpdateHelmChart(chart *helmapiv1.HelmChart, namespace string) (updatedChart *helmapiv1.HelmChart, err error) {
 	timeout := 120 * time.Second
 	return updatedChart, wait.Poll(5*time.Second, timeout, func() (bool, error) {
-		updatedChart, err = f.HelmClientSet.HelmV1().HelmCharts(namespace).Update(context.TODO(), chart, metav1.UpdateOptions{})
+		updatedChart, err = f.HelmClientSet.HelmV1().HelmCharts(namespace).Update(chart)
 		if err != nil {
 			return false, err
 		}
@@ -169,15 +158,15 @@ func (f *Framework) UpdateHelmChart(chart *helmapiv1.HelmChart, namespace string
 }
 
 func (f *Framework) DeleteHelmChart(name, namespace string) error {
-	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Delete(name, &metav1.DeleteOptions{})
 }
 
 func (f *Framework) GetHelmChart(name, namespace string) (*helmapiv1.HelmChart, error) {
-	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Get(name, metav1.GetOptions{})
 }
 
 func (f *Framework) ListHelmCharts(labelSelector, namespace string) (*helmapiv1.HelmChartList, error) {
-	return f.HelmClientSet.HelmV1().HelmCharts(namespace).List(context.TODO(), metav1.ListOptions{
+	return f.HelmClientSet.HelmV1().HelmCharts(namespace).List(metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
 }
@@ -190,7 +179,7 @@ func (f *Framework) WaitForChartApp(chart *helmapiv1.HelmChart, appName string, 
 	})
 
 	return pods, wait.Poll(5*time.Second, timeout, func() (bool, error) {
-		list, err := f.ClientSet.CoreV1().Pods(chart.Namespace).List(context.TODO(), metav1.ListOptions{
+		list, err := f.ClientSet.CoreV1().Pods(chart.Namespace).List(metav1.ListOptions{
 			LabelSelector: labelSelector.String(),
 		})
 		if err != nil {
