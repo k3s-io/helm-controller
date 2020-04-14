@@ -118,6 +118,51 @@ var _ = Describe("Helm Tests", func() {
 		})
 	})
 
+	Context("When a helm V3 chart version is updated with values", func() {
+		var (
+			err     error
+			chart   *helmapiv1.HelmChart
+			secrets []corev1.Secret
+			pods    []corev1.Pod
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-update-example-values",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			secrets, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(secrets).To(HaveLen(1))
+
+			chart, err = framework.GetHelmChart("traefik-update-example-values", framework.Namespace)
+			chart.Spec.Set["replicas"] = intstr.FromString("3")
+			chart, err = framework.UpdateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			pods, err = framework.WaitForChartApp(chart, "traefik", 120*time.Second, 3)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should upgrade the release successfully", func() {
+			Expect(len(pods)).To(BeEquivalentTo(3))
+		})
+	})
+
 	Context("When a helm V2 chart is created", func() {
 		var (
 			err     error

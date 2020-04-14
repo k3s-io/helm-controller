@@ -174,8 +174,8 @@ func (f *Framework) ListHelmCharts(labelSelector, namespace string) (*helmapiv1.
 // WaitForChartApp will check the for pods created by the chart
 func (f *Framework) WaitForChartApp(chart *helmapiv1.HelmChart, appName string, timeout time.Duration, count int) (pods []corev1.Pod, err error) {
 	labelSelector := labels.SelectorFromSet(labels.Set{
-		"app":      appName,
-		"heritage": "Helm",
+		"app":     appName,
+		"release": chart.Name,
 	})
 
 	return pods, wait.Poll(5*time.Second, timeout, func() (bool, error) {
