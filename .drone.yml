@@ -15,6 +15,14 @@ steps:
   - name: docker
     path: /var/run/docker.sock
 
+- name: e2e test
+  image: rancher/dapper:v0.4.1
+  commands:
+    - dapper e2e
+  volumes:
+    - name: docker
+      path: /var/run/docker.sock
+
 - name: github_binary_release
   image: plugins/github-release
   settings:
