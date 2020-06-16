@@ -14,7 +14,7 @@ import (
 func TestInstallJob(t *testing.T) {
 	assert := assert.New(t)
 	chart := NewChart()
-	job, _ := job(chart)
+	job, _, _ := job(chart)
 	assert.Equal("helm-install-traefik", job.Name)
 	assert.Equal(image, job.Spec.Template.Spec.Containers[0].Image)
 	assert.Equal("helm-traefik", job.Spec.Template.Spec.ServiceAccountName)
@@ -25,7 +25,7 @@ func TestDeleteJob(t *testing.T) {
 	chart := NewChart()
 	deleteTime := v12.NewTime(time.Time{})
 	chart.DeletionTimestamp = &deleteTime
-	job, _ := job(chart)
+	job, _, _ := job(chart)
 	assert.Equal("helm-delete-traefik", job.Name)
 }
 
