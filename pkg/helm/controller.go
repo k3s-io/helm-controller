@@ -409,7 +409,7 @@ func setValuesConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMap
 		return nil
 	}
 
-	job.Spec.Template.Spec.Volumes = []core.Volume{
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, []core.Volume{
 		{
 			Name: "values",
 			VolumeSource: core.VolumeSource{
@@ -420,14 +420,14 @@ func setValuesConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMap
 				},
 			},
 		},
-	}
+	}...)
 
-	job.Spec.Template.Spec.Containers[0].VolumeMounts = []core.VolumeMount{
+	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, []core.VolumeMount{
 		{
 			MountPath: "/config",
 			Name:      "values",
 		},
-	}
+	}...)
 
 	return configMap
 }
@@ -438,7 +438,7 @@ func setContentConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMa
 		return nil
 	}
 
-	job.Spec.Template.Spec.Volumes = []core.Volume{
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, []core.Volume{
 		{
 			Name: "content",
 			VolumeSource: core.VolumeSource{
@@ -449,14 +449,14 @@ func setContentConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMa
 				},
 			},
 		},
-	}
+	}...)
 
-	job.Spec.Template.Spec.Containers[0].VolumeMounts = []core.VolumeMount{
+	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, []core.VolumeMount{
 		{
 			MountPath: "/chart",
 			Name:      "content",
 		},
-	}
+	}...)
 
 	return configMap
 }
