@@ -17,7 +17,7 @@ RUN if [ "${ARCH}" == "amd64" ]; then \
         curl -sL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s v1.15.0; \
     fi
 
-RUN curl -L https://github.com/rancher/rke/releases/download/v1.0.5/rke_linux-$ARCH \
+RUN curl -L https://github.com/rancher/rke/releases/download/v1.1.4/rke_linux-$ARCH \
     --output /usr/local/bin/rke && chmod +x /usr/local/bin/rke
 
 ENV GO111MODULE off

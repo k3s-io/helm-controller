@@ -73,7 +73,7 @@ func (f *Framework) beforeFramework() {
 	errExit("Failed to initiate a client set", err)
 	crdFactory, err := crd.NewFactoryFromClient(config)
 	errExit("Failed initiate factory client", err)
-	f.crds, err = getCRD()
+	f.crds, err = getCRDs()
 	errExit("Failed to construct helm crd", err)
 
 	f.HelmClientSet = helmcln
@@ -91,10 +91,11 @@ func errExit(msg string, err error) {
 	logrus.Panicf("%s: %v", msg, err)
 }
 
-func getCRD() ([]crd.CRD, error) {
+func getCRDs() ([]crd.CRD, error) {
 	var crds []crd.CRD
 	for _, crdFn := range []func() (*crd.CRD, error){
-		CRD,
+		ChartCRD,
+		ConfigCRD,
 	} {
 		crdef, err := crdFn()
 		if err != nil {
@@ -106,7 +107,7 @@ func getCRD() ([]crd.CRD, error) {
 	return crds, nil
 }
 
-func CRD() (*crd.CRD, error) {
+func ChartCRD() (*crd.CRD, error) {
 	prototype := helmapiv1.NewHelmChart("", "", helmapiv1.HelmChart{})
 	schema, err := openapi.ToOpenAPIFromStruct(*prototype)
 	if err != nil {
@@ -115,6 +116,20 @@ func CRD() (*crd.CRD, error) {
 	return &crd.CRD{
 		GVK:        prototype.GroupVersionKind(),
 		PluralName: helmapiv1.HelmChartResourceName,
+		Status:     true,
+		Schema:     schema,
+	}, nil
+}
+
+func ConfigCRD() (*crd.CRD, error) {
+	prototype := helmapiv1.NewHelmChartConfig("", "", helmapiv1.HelmChartConfig{})
+	schema, err := openapi.ToOpenAPIFromStruct(*prototype)
+	if err != nil {
+		return nil, err
+	}
+	return &crd.CRD{
+		GVK:        prototype.GroupVersionKind(),
+		PluralName: helmapiv1.HelmChartConfigResourceName,
 		Status:     true,
 		Schema:     schema,
 	}, nil

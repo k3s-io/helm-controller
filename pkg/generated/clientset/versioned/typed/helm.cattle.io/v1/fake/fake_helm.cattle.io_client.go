@@ -32,6 +32,10 @@ func (c *FakeHelmV1) HelmCharts(namespace string) v1.HelmChartInterface {
 	return &FakeHelmCharts{c, namespace}
 }
 
+func (c *FakeHelmV1) HelmChartConfigs(namespace string) v1.HelmChartConfigInterface {
+	return &FakeHelmChartConfigs{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeHelmV1) RESTClient() rest.Interface {

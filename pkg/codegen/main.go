@@ -14,6 +14,7 @@ func main() {
 			"helm.cattle.io": {
 				Types: []interface{}{
 					v1.HelmChart{},
+					v1.HelmChartConfig{},
 				},
 				GenerateTypes: true,
 			},

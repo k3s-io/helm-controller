@@ -254,6 +254,9 @@ var _ = Describe("Helm Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(secrets).To(HaveLen(1))
 
+			// wait for the chart to settle before updating it
+			time.Sleep(10 * time.Second)
+
 			chart, err = framework.GetHelmChart("traefik-update-example-v2", framework.Namespace)
 			chart.Spec.Version = "1.86.2"
 			chart, err = framework.UpdateHelmChart(chart, framework.Namespace)
