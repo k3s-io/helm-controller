@@ -119,6 +119,7 @@ func run(c *cli.Context) error {
 
 	helmcontroller.Register(ctx, objectSetApply,
 		helms.Helm().V1().HelmChart(),
+		helms.Helm().V1().HelmChartConfig(),
 		batches.Batch().V1().Job(),
 		rbacs.Rbac().V1().ClusterRoleBinding(),
 		cores.Core().V1().ServiceAccount(),

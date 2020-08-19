@@ -6,8 +6,47 @@ metadata:
 spec:
   group: helm.cattle.io
   version: v1
+  additionalPrinterColumns:
+  - name: Chart
+    type: string
+    description: Helm Chart name
+    JSONPath: .spec.chart
+  - name: TargetNamespace
+    type: string
+    description: Helm Chart target namespace
+    JSONPath: .spec.targetNamespace
+  - name: Version
+    type: string
+    description: Helm Chart version
+    JSONPath: .spec.version
+  - name: Repo
+    type: string
+    description: Helm Chart repository URL
+    JSONPath: .spec.repo
+  - name: HelmVersion
+    type: string
+    description: Helm version used to manage the selected chart
+    JSONPath: .spec.helmVersion
+  - name: Bootstrap
+    type: boolean
+    description: True if this is chart is needed to bootstrap the cluster
+    JSONPath: .spec.bootstrap
   names:
     kind: HelmChart
     plural: helmcharts
     singular: helmchart
+  scope: Namespaced
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: helmchartconfigs.helm.cattle.io
+  namespace: kube-system
+spec:
+  group: helm.cattle.io
+  version: v1
+  names:
+    kind: HelmChartConfig
+    plural: helmchartconfigs
+    singular: helmchartconfig
   scope: Namespaced
