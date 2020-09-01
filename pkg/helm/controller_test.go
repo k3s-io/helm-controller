@@ -16,7 +16,7 @@ func TestInstallJob(t *testing.T) {
 	chart := NewChart()
 	job, _, _ := job(chart)
 	assert.Equal("helm-install-traefik", job.Name)
-	assert.Equal(image, job.Spec.Template.Spec.Containers[0].Image)
+	assert.Equal(DefaultJobImage, job.Spec.Template.Spec.Containers[0].Image)
 	assert.Equal("helm-traefik", job.Spec.Template.Spec.ServiceAccountName)
 }
 
