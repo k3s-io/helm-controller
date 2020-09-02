@@ -7,6 +7,10 @@ spec:
   group: helm.cattle.io
   version: v1
   additionalPrinterColumns:
+  - name: Job
+    type: string
+    description: Job associated with updates to this chart
+    JSONPath: .status.jobName
   - name: Chart
     type: string
     description: Helm Chart name
