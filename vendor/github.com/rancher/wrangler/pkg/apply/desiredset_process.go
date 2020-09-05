@@ -190,7 +190,7 @@ func (o *desiredSet) process(debugID string, set labels.Selector, gvk schema.Gro
 		return
 	}
 
-	if o.setOwnerReference {
+	if o.setOwnerReference && o.owner != nil {
 		if err := o.assignOwnerReference(gvk, objs); err != nil {
 			o.err(err)
 			return
@@ -331,7 +331,7 @@ func (o *desiredSet) list(informer cache.SharedIndexInformer, client dynamic.Nam
 		return objs, merr.NewErrors(errs...)
 	}
 
-	err := cache.ListAllByNamespace(informer.GetIndexer(), "", selector, func(obj interface{}) {
+	err := cache.ListAllByNamespace(informer.GetIndexer(), o.listerNamespace, selector, func(obj interface{}) {
 		if err := addObjectToMap(objs, obj); err != nil {
 			errs = append(errs, err)
 		}
