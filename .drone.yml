@@ -1,5 +1,6 @@
 ---
 kind: pipeline
+type: docker
 name: amd64
 
 platform:
@@ -8,7 +9,7 @@ platform:
 
 steps:
 - name: build
-  image: rancher/dapper:v0.4.1
+  image: rancher/dapper:v0.5.0
   commands:
   - dapper ci
   volumes:
@@ -16,33 +17,33 @@ steps:
     path: /var/run/docker.sock
 
 - name: e2e test
-  image: rancher/dapper:v0.4.1
+  image: rancher/dapper:v0.5.0
   commands:
-    - dapper e2e
+  - dapper e2e
   volumes:
-    - name: docker
-      path: /var/run/docker.sock
+  - name: docker
+    path: /var/run/docker.sock
 
 - name: github_binary_release
   image: plugins/github-release
   settings:
     api_key:
       from_secret: github_token
-    prerelease: true
     checksum:
     - sha256
     checksum_file: CHECKSUMsum-amd64.txt
     checksum_flatten: true
     files:
-    - "dist/artifacts/*"
+    - dist/artifacts/*
+    prerelease: true
   when:
+    event:
+    - tag
     instance:
     - drone-publish.rancher.io
     ref:
     - refs/head/master
     - refs/tags/*
-    event:
-    - tag
 
 - name: docker-publish
   image: plugins/docker
@@ -50,18 +51,18 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/helm-controller"
+    repo: k3s-io/helm-controller
     tag: "${DRONE_TAG}-amd64"
     username:
       from_secret: docker_username
   when:
+    event:
+    - tag
     instance:
     - drone-publish.rancher.io
     ref:
     - refs/head/master
     - refs/tags/*
-    event:
-    - tag
 
 volumes:
 - name: docker
@@ -70,6 +71,7 @@ volumes:
 
 ---
 kind: pipeline
+type: docker
 name: arm64
 
 platform:
@@ -78,7 +80,7 @@ platform:
 
 steps:
 - name: build
-  image: rancher/dapper:v0.4.1
+  image: rancher/dapper:v0.5.0
   commands:
   - dapper ci
   volumes:
@@ -90,21 +92,21 @@ steps:
   settings:
     api_key:
       from_secret: github_token
-    prerelease: true
     checksum:
     - sha256
     checksum_file: CHECKSUMsum-arm64.txt
     checksum_flatten: true
     files:
-    - "dist/artifacts/*"
+    - dist/artifacts/*
+    prerelease: true
   when:
+    event:
+    - tag
     instance:
     - drone-publish.rancher.io
     ref:
     - refs/head/master
     - refs/tags/*
-    event:
-    - tag
 
 - name: docker-publish
   image: plugins/docker
@@ -112,18 +114,18 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/helm-controller"
+    repo: k3s-io/helm-controller
     tag: "${DRONE_TAG}-arm64"
     username:
       from_secret: docker_username
   when:
+    event:
+    - tag
     instance:
     - drone-publish.rancher.io
     ref:
     - refs/head/master
     - refs/tags/*
-    event:
-    - tag
 
 volumes:
 - name: docker
@@ -132,6 +134,7 @@ volumes:
 
 ---
 kind: pipeline
+type: docker
 name: arm
 
 platform:
@@ -140,7 +143,7 @@ platform:
 
 steps:
 - name: build
-  image: rancher/dapper:v0.4.1
+  image: rancher/dapper:v0.5.0
   commands:
   - dapper ci
   volumes:
@@ -152,21 +155,21 @@ steps:
   settings:
     api_key:
       from_secret: github_token
-    prerelease: true
     checksum:
     - sha256
     checksum_file: CHECKSUMsum-arm.txt
     checksum_flatten: true
     files:
-    - "dist/artifacts/*"
+    - dist/artifacts/*
+    prerelease: true
   when:
+    event:
+    - tag
     instance:
     - drone-publish.rancher.io
     ref:
     - refs/head/master
     - refs/tags/*
-    event:
-    - tag
 
 - name: docker-publish
   image: plugins/docker
@@ -174,18 +177,18 @@ steps:
     dockerfile: package/Dockerfile
     password:
       from_secret: docker_password
-    repo: "rancher/helm-controller"
+    repo: k3s-io/helm-controller
     tag: "${DRONE_TAG}-arm"
     username:
       from_secret: docker_username
   when:
+    event:
+    - tag
     instance:
     - drone-publish.rancher.io
     ref:
     - refs/head/master
     - refs/tags/*
-    event:
-    - tag
 
 volumes:
 - name: docker
@@ -194,6 +197,7 @@ volumes:
 
 ---
 kind: pipeline
+type: docker
 name: manifest
 
 platform:
@@ -204,26 +208,28 @@ steps:
 - name: manifest
   image: plugins/manifest:1.0.2
   settings:
-    username:
-      from_secret: docker_username
     password:
       from_secret: docker_password
     platforms:
-      - linux/amd64
-      - linux/arm64
-      - linux/arm
-    target: "rancher/helm-controller:${DRONE_TAG}"
-    template: "rancher/helm-controller:${DRONE_TAG}-ARCH"
+    - linux/amd64
+    - linux/arm64
+    - linux/arm
+    target: "k3s-io/helm-controller:${DRONE_TAG}"
+    template: "k3s-io/helm-controller:${DRONE_TAG}-ARCH"
+    username:
+      from_secret: docker_username
   when:
+    event:
+    - tag
     instance:
     - drone-publish.rancher.io
     ref:
     - refs/head/master
     - refs/tags/*
-    event:
-    - tag
 
 depends_on:
 - amd64
 - arm64
 - arm
+
+...
