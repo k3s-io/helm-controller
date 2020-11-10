@@ -283,7 +283,7 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 				Name:  "KUBERNETES_SERVICE_PORT",
 				Value: "6443"},
 			{
-				Name: "BOOTSTRAP",
+				Name:  "BOOTSTRAP",
 				Value: "true"},
 		}...)
 		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
