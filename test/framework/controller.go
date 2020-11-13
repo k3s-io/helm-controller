@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/rancher/helm-controller/pkg/helm"
+	"github.com/k3s-io/helm-controller/pkg/helm"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -107,7 +107,7 @@ func getImage() string {
 	if img, ok := os.LookupEnv("HELM_CONTROLLER_IMAGE"); ok {
 		return img
 	}
-	return "rancher/helm-controller:latest"
+	return "k3s-io/helm-controller:latest"
 }
 
 func (f *Framework) getCrb() *v1.ClusterRoleBinding {

@@ -22,9 +22,9 @@ import (
 	"context"
 	"time"
 
-	clientset "github.com/rancher/helm-controller/pkg/generated/clientset/versioned"
-	scheme "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/scheme"
-	informers "github.com/rancher/helm-controller/pkg/generated/informers/externalversions"
+	clientset "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
+	scheme "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned/scheme"
+	informers "github.com/k3s-io/helm-controller/pkg/generated/informers/externalversions"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/schemes"
 	"k8s.io/apimachinery/pkg/runtime/schema"

@@ -1,4 +1,4 @@
-module github.com/rancher/helm-controller
+module github.com/k3s-io/helm-controller
 
 go 1.13
 

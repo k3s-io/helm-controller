@@ -1,26 +1,26 @@
 package framework
 
 import (
+	"context"
 	"os"
 	"time"
 
-	"github.com/rancher/helm-controller/pkg/helm"
+	"k8s.io/client-go/util/retry"
+
+	helmapiv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
+	"github.com/k3s-io/helm-controller/pkg/helm"
+	"github.com/onsi/ginkgo"
 	"github.com/rancher/wrangler/pkg/condition"
+	"github.com/rancher/wrangler/pkg/crd"
 	"github.com/rancher/wrangler/pkg/schemas/openapi"
+	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"context"
-
-	"github.com/onsi/ginkgo"
-	helmapiv1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	helmcln "github.com/rancher/helm-controller/pkg/generated/clientset/versioned"
-	"github.com/rancher/wrangler/pkg/crd"
-	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -172,15 +172,20 @@ func (f *Framework) CreateHelmChart(chart *helmapiv1.HelmChart, namespace string
 	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Create(context.TODO(), chart, metav1.CreateOptions{})
 }
 
-func (f *Framework) UpdateHelmChart(chart *helmapiv1.HelmChart, namespace string) (updatedChart *helmapiv1.HelmChart, err error) {
-	timeout := 120 * time.Second
-	return updatedChart, wait.Poll(5*time.Second, timeout, func() (bool, error) {
-		updatedChart, err = f.HelmClientSet.HelmV1().HelmCharts(namespace).Update(context.TODO(), chart, metav1.UpdateOptions{})
+func (f *Framework) UpdateHelmChart(chart *helmapiv1.HelmChart, namespace string) (updated *helmapiv1.HelmChart, err error) {
+	hcs := f.HelmClientSet.HelmV1()
+	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		updated, err = hcs.HelmCharts(namespace).Get(context.TODO(), chart.Name, metav1.GetOptions{})
 		if err != nil {
-			return false, err
+			return err
 		}
-		return true, nil
-	})
+		updated.Spec = chart.Spec
+		_, err = hcs.HelmCharts(namespace).Update(context.TODO(), updated, metav1.UpdateOptions{})
+		return err
+	}); err != nil {
+		updated = nil
+	}
+	return
 }
 
 func (f *Framework) DeleteHelmChart(name, namespace string) error {
