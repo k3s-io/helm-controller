@@ -49,12 +49,12 @@ steps:
   image: plugins/docker
   settings:
     dockerfile: package/Dockerfile
+    username:
+      from_secret: docker_username
     password:
       from_secret: docker_password
     repo: k3s-io/helm-controller
     tag: "${DRONE_TAG}-${DRONE_STAGE_ARCH}"
-    username:
-      from_secret: docker_username
   when:
     event:
     - tag
@@ -112,12 +112,12 @@ steps:
   image: plugins/docker
   settings:
     dockerfile: package/Dockerfile
+    username:
+      from_secret: docker_username
     password:
       from_secret: docker_password
     repo: k3s-io/helm-controller
     tag: "${DRONE_TAG}-${DRONE_STAGE_ARCH}"
-    username:
-      from_secret: docker_username
   when:
     event:
     - tag
@@ -175,12 +175,12 @@ steps:
   image: plugins/docker
   settings:
     dockerfile: package/Dockerfile
+    username:
+      from_secret: docker_username
     password:
       from_secret: docker_password
     repo: k3s-io/helm-controller
     tag: "${DRONE_TAG}-${DRONE_STAGE_ARCH}"
-    username:
-      from_secret: docker_username
   when:
     event:
     - tag
@@ -208,6 +208,8 @@ steps:
 - name: manifest
   image: plugins/manifest:1.0.2
   settings:
+    username:
+      from_secret: docker_username
     password:
       from_secret: docker_password
     platforms:
@@ -216,8 +218,6 @@ steps:
     - linux/arm
     target: "k3s-io/helm-controller:${DRONE_TAG}"
     template: "k3s-io/helm-controller:${DRONE_TAG}-ARCH"
-    username:
-      from_secret: docker_username
   when:
     event:
     - tag
