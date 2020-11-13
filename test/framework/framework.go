@@ -1,26 +1,24 @@
 package framework
 
 import (
+	"context"
 	"os"
 	"time"
 
-	"github.com/rancher/helm-controller/pkg/helm"
+	helmapiv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
+	"github.com/k3s-io/helm-controller/pkg/helm"
+	"github.com/onsi/ginkgo"
 	"github.com/rancher/wrangler/pkg/condition"
+	"github.com/rancher/wrangler/pkg/crd"
 	"github.com/rancher/wrangler/pkg/schemas/openapi"
+	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"context"
-
-	"github.com/onsi/ginkgo"
-	helmapiv1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	helmcln "github.com/rancher/helm-controller/pkg/generated/clientset/versioned"
-	"github.com/rancher/wrangler/pkg/crd"
-	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )

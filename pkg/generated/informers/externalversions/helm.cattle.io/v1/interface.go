@@ -19,7 +19,7 @@ limitations under the License.
 package v1
 
 import (
-	internalinterfaces "github.com/rancher/helm-controller/pkg/generated/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/k3s-io/helm-controller/pkg/generated/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	helmv1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	helmcontroller "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
+	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	batchcontroller "github.com/rancher/wrangler-api/pkg/generated/controllers/batch/v1"
 	corecontroller "github.com/rancher/wrangler-api/pkg/generated/controllers/core/v1"
 	rbaccontroller "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac/v1"
