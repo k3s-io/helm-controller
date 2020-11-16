@@ -107,7 +107,7 @@ func getImage() string {
 	if img, ok := os.LookupEnv("HELM_CONTROLLER_IMAGE"); ok {
 		return img
 	}
-	return "k3s-io/helm-controller:latest"
+	return "rancher/helm-controller:latest"
 }
 
 func (f *Framework) getCrb() *v1.ClusterRoleBinding {

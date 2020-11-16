@@ -53,7 +53,7 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-    repo: k3s-io/helm-controller
+    repo: rancher/helm-controller
     tag: "${DRONE_TAG}-${DRONE_STAGE_ARCH}"
   when:
     event:
@@ -116,7 +116,7 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-    repo: k3s-io/helm-controller
+    repo: rancher/helm-controller
     tag: "${DRONE_TAG}-${DRONE_STAGE_ARCH}"
   when:
     event:
@@ -179,7 +179,7 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-    repo: k3s-io/helm-controller
+    repo: rancher/helm-controller
     tag: "${DRONE_TAG}-${DRONE_STAGE_ARCH}"
   when:
     event:
@@ -216,8 +216,8 @@ steps:
     - linux/amd64
     - linux/arm64
     - linux/arm
-    target: "k3s-io/helm-controller:${DRONE_TAG}"
-    template: "k3s-io/helm-controller:${DRONE_TAG}-ARCH"
+    target: "rancher/helm-controller:${DRONE_TAG}"
+    template: "rancher/helm-controller:${DRONE_TAG}-ARCH"
   when:
     event:
     - tag

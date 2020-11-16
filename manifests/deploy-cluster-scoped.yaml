@@ -30,5 +30,5 @@ spec:
     spec:
       containers:
         - name: helm-controller
-          image: k3s-io/helm-controller:v0.1.2
+          image: rancher/helm-controller:v0.1.2
           command: ["helm-controller"]
