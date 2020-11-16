@@ -9,7 +9,7 @@ SUFFIX="-${ARCH}"
 cd $(dirname $0)/..
 
 TAG=${TAG:-${VERSION}${SUFFIX}}
-REPO=${REPO:-k3s-io}
+REPO=${REPO:-rancher}
 
 if echo $TAG | grep -q dirty; then
     TAG=dev
