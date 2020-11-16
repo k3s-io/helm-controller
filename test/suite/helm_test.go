@@ -25,7 +25,7 @@ var _ = Describe("Helm Tests", func() {
 		BeforeEach(func() {
 			chart = framework.NewHelmChart("traefik-example",
 				"stable/traefik",
-				"",
+				"1.86.1",
 				"v3",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -175,7 +175,7 @@ var _ = Describe("Helm Tests", func() {
 		BeforeEach(func() {
 			chart = framework.NewHelmChart("traefik-example-v2",
 				"stable/traefik",
-				"",
+				"1.86.1",
 				"v2",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
