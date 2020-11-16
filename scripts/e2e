@@ -16,7 +16,7 @@ nodes:
   role: [controlplane,worker,etcd]
 EOF
     DOCKER_API_VERSION=1.39 rke remove --dind --force || true
-    DOCKER_API_VERSION=1.39 rke up --dind
+    DOCKER_API_VERSION=1.39 rke -d up --dind --dind-dns-server "8.8.8.8"
     sleep $RKE_WAIT_TIME
 }
 

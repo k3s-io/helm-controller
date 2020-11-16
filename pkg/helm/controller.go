@@ -39,7 +39,7 @@ type Controller struct {
 }
 
 const (
-	DefaultJobImage = "rancher/klipper-helm:v0.3.1"
+	DefaultJobImage = "rancher/klipper-helm:v0.3.2"
 	Label           = "helmcharts.helm.cattle.io/chart"
 	Annotation      = "helmcharts.helm.cattle.io/configHash"
 	CRDName         = "helmcharts.helm.cattle.io"
@@ -282,6 +282,9 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 			{
 				Name:  "KUBERNETES_SERVICE_PORT",
 				Value: "6443"},
+			{
+				Name:  "BOOTSTRAP",
+				Value: "true"},
 		}...)
 		job.Spec.Template.Spec.NodeSelector = make(map[string]string)
 		job.Spec.Template.Spec.NodeSelector["node-role.kubernetes.io/master"] = "true"
