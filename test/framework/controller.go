@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/rancher/helm-controller/pkg/helm"
+	"github.com/k3s-io/helm-controller/pkg/helm"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -145,16 +145,24 @@ func (f *Framework) teardownController(ctx context.Context) error {
 		return err
 	}
 	for _, item := range charts.Items {
-		item.Finalizers = []string{}
-		_, err := f.UpdateHelmChart(&item, f.Namespace)
+		// refresh object before updating; it may have changed since listing
+		rItem, err := f.GetHelmChart(item.Name, item.Namespace)
 		if err != nil {
 			return err
 		}
+
+		rItem.Finalizers = []string{}
+		_, err = f.UpdateHelmChart(rItem, f.Namespace)
+		if err != nil {
+			return err
+		}
+
 		err = f.DeleteHelmChart(item.Name, item.Namespace)
 		if err != nil && !errors.IsNotFound(err) {
 			return err
 		}
 	}
+
 	err = f.ClientSet.RbacV1().ClusterRoleBindings().Delete(ctx, f.Name, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
@@ -169,5 +177,6 @@ func (f *Framework) teardownController(ctx context.Context) error {
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}
+
 	return nil
 }

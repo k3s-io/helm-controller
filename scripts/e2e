@@ -16,15 +16,16 @@ nodes:
   role: [controlplane,worker,etcd]
 EOF
     DOCKER_API_VERSION=1.39 rke remove --dind --force || true
-    DOCKER_API_VERSION=1.39 rke up --dind
+    DOCKER_API_VERSION=1.39 rke -d up --dind --dind-dns-server "8.8.8.8"
     sleep $RKE_WAIT_TIME
 }
 
 teardown_k8s(){
     unset DOCKER_HOST
-    rke remove --dind --force
+    rke remove --dind --force || true
     rm cluster.yml
     rm cluster.rkestate
+    docker rm -vf rke-dind-${RKE_NODE_NAME} >/dev/null 2>&1
 }
 
 load_helm_image(){
@@ -35,9 +36,9 @@ load_helm_image(){
     unset DOCKER_HOST
 }
 
+trap teardown_k8s EXIT
 setup_k8s
-trap "teardown_k8s" EXIT
 export KUBECONFIG=$PWD/kube_config_cluster.yml
 export HELM_CONTROLLER_IMAGE=$(cat bin/helm-controller-image.txt)
 load_helm_image
-go test ./test... -cover -tags=test
+go test -cover -tags=test -v ./test/...

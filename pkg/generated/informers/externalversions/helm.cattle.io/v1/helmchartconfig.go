@@ -32,59 +32,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// HelmChartInformer provides access to a shared informer and lister for
-// HelmCharts.
-type HelmChartInformer interface {
+// HelmChartConfigInformer provides access to a shared informer and lister for
+// HelmChartConfigs.
+type HelmChartConfigInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.HelmChartLister
+	Lister() v1.HelmChartConfigLister
 }
 
-type helmChartInformer struct {
+type helmChartConfigInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewHelmChartInformer constructs a new informer for HelmChart type.
+// NewHelmChartConfigInformer constructs a new informer for HelmChartConfig type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewHelmChartInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredHelmChartInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewHelmChartConfigInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredHelmChartConfigInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredHelmChartInformer constructs a new informer for HelmChart type.
+// NewFilteredHelmChartConfigInformer constructs a new informer for HelmChartConfig type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredHelmChartInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredHelmChartConfigInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.HelmV1().HelmCharts(namespace).List(context.TODO(), options)
+				return client.HelmV1().HelmChartConfigs(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.HelmV1().HelmCharts(namespace).Watch(context.TODO(), options)
+				return client.HelmV1().HelmChartConfigs(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&helmcattleiov1.HelmChart{},
+		&helmcattleiov1.HelmChartConfig{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *helmChartInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredHelmChartInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *helmChartConfigInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredHelmChartConfigInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *helmChartInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&helmcattleiov1.HelmChart{}, f.defaultInformer)
+func (f *helmChartConfigInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&helmcattleiov1.HelmChartConfig{}, f.defaultInformer)
 }
 
-func (f *helmChartInformer) Lister() v1.HelmChartLister {
-	return v1.NewHelmChartLister(f.Informer().GetIndexer())
+func (f *helmChartConfigInformer) Lister() v1.HelmChartConfigLister {
+	return v1.NewHelmChartConfigLister(f.Informer().GetIndexer())
 }

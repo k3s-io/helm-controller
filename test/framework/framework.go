@@ -1,26 +1,26 @@
 package framework
 
 import (
+	"context"
 	"os"
 	"time"
 
-	"github.com/rancher/helm-controller/pkg/helm"
+	"k8s.io/client-go/util/retry"
+
+	helmapiv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
+	"github.com/k3s-io/helm-controller/pkg/helm"
+	"github.com/onsi/ginkgo"
 	"github.com/rancher/wrangler/pkg/condition"
+	"github.com/rancher/wrangler/pkg/crd"
 	"github.com/rancher/wrangler/pkg/schemas/openapi"
+	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"context"
-
-	"github.com/onsi/ginkgo"
-	helmapiv1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	helmcln "github.com/rancher/helm-controller/pkg/generated/clientset/versioned"
-	"github.com/rancher/wrangler/pkg/crd"
-	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -73,7 +73,7 @@ func (f *Framework) beforeFramework() {
 	errExit("Failed to initiate a client set", err)
 	crdFactory, err := crd.NewFactoryFromClient(config)
 	errExit("Failed initiate factory client", err)
-	f.crds, err = getCRD()
+	f.crds, err = getCRDs()
 	errExit("Failed to construct helm crd", err)
 
 	f.HelmClientSet = helmcln
@@ -91,10 +91,11 @@ func errExit(msg string, err error) {
 	logrus.Panicf("%s: %v", msg, err)
 }
 
-func getCRD() ([]crd.CRD, error) {
+func getCRDs() ([]crd.CRD, error) {
 	var crds []crd.CRD
 	for _, crdFn := range []func() (*crd.CRD, error){
-		CRD,
+		ChartCRD,
+		ConfigCRD,
 	} {
 		crdef, err := crdFn()
 		if err != nil {
@@ -106,7 +107,7 @@ func getCRD() ([]crd.CRD, error) {
 	return crds, nil
 }
 
-func CRD() (*crd.CRD, error) {
+func ChartCRD() (*crd.CRD, error) {
 	prototype := helmapiv1.NewHelmChart("", "", helmapiv1.HelmChart{})
 	schema, err := openapi.ToOpenAPIFromStruct(*prototype)
 	if err != nil {
@@ -115,6 +116,20 @@ func CRD() (*crd.CRD, error) {
 	return &crd.CRD{
 		GVK:        prototype.GroupVersionKind(),
 		PluralName: helmapiv1.HelmChartResourceName,
+		Status:     true,
+		Schema:     schema,
+	}, nil
+}
+
+func ConfigCRD() (*crd.CRD, error) {
+	prototype := helmapiv1.NewHelmChartConfig("", "", helmapiv1.HelmChartConfig{})
+	schema, err := openapi.ToOpenAPIFromStruct(*prototype)
+	if err != nil {
+		return nil, err
+	}
+	return &crd.CRD{
+		GVK:        prototype.GroupVersionKind(),
+		PluralName: helmapiv1.HelmChartConfigResourceName,
 		Status:     true,
 		Schema:     schema,
 	}, nil
@@ -157,15 +172,20 @@ func (f *Framework) CreateHelmChart(chart *helmapiv1.HelmChart, namespace string
 	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Create(context.TODO(), chart, metav1.CreateOptions{})
 }
 
-func (f *Framework) UpdateHelmChart(chart *helmapiv1.HelmChart, namespace string) (updatedChart *helmapiv1.HelmChart, err error) {
-	timeout := 120 * time.Second
-	return updatedChart, wait.Poll(5*time.Second, timeout, func() (bool, error) {
-		updatedChart, err = f.HelmClientSet.HelmV1().HelmCharts(namespace).Update(context.TODO(), chart, metav1.UpdateOptions{})
+func (f *Framework) UpdateHelmChart(chart *helmapiv1.HelmChart, namespace string) (updated *helmapiv1.HelmChart, err error) {
+	hcs := f.HelmClientSet.HelmV1()
+	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		updated, err = hcs.HelmCharts(namespace).Get(context.TODO(), chart.Name, metav1.GetOptions{})
 		if err != nil {
-			return false, err
+			return err
 		}
-		return true, nil
-	})
+		updated.Spec = chart.Spec
+		_, err = hcs.HelmCharts(namespace).Update(context.TODO(), updated, metav1.UpdateOptions{})
+		return err
+	}); err != nil {
+		updated = nil
+	}
+	return
 }
 
 func (f *Framework) DeleteHelmChart(name, namespace string) error {

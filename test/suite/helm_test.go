@@ -5,8 +5,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	helmapiv1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	"github.com/rancher/helm-controller/test/framework"
+
+	helmapiv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	"github.com/k3s-io/helm-controller/test/framework"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -24,7 +25,7 @@ var _ = Describe("Helm Tests", func() {
 		BeforeEach(func() {
 			chart = framework.NewHelmChart("traefik-example",
 				"stable/traefik",
-				"",
+				"1.86.1",
 				"v3",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -110,6 +111,7 @@ var _ = Describe("Helm Tests", func() {
 			chart.Spec.Version = "1.86.2"
 			chart, err = framework.UpdateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(chart.Spec.Version).To(Equal("1.86.2"))
 			pods, err = framework.WaitForChartApp(chart, "traefik", 120*time.Second, 1)
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -155,6 +157,7 @@ var _ = Describe("Helm Tests", func() {
 			chart.Spec.Set["replicas"] = intstr.FromString("3")
 			chart, err = framework.UpdateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(chart.Spec.Set["replicas"]).To(Equal(intstr.FromString("3")))
 			pods, err = framework.WaitForChartApp(chart, "traefik", 120*time.Second, 3)
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -172,7 +175,7 @@ var _ = Describe("Helm Tests", func() {
 		BeforeEach(func() {
 			chart = framework.NewHelmChart("traefik-example-v2",
 				"stable/traefik",
-				"",
+				"1.86.1",
 				"v2",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -254,10 +257,14 @@ var _ = Describe("Helm Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(secrets).To(HaveLen(1))
 
+			// wait for the chart to settle before updating it
+			time.Sleep(10 * time.Second)
+
 			chart, err = framework.GetHelmChart("traefik-update-example-v2", framework.Namespace)
 			chart.Spec.Version = "1.86.2"
 			chart, err = framework.UpdateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(chart.Spec.Version).To(Equal("1.86.2"))
 			pods, err = framework.WaitForChartApp(chart, "traefik", 120*time.Second, 1)
 			Expect(err).ToNot(HaveOccurred())
 		})
