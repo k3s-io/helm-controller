@@ -6,7 +6,7 @@ supporting the [acceptance of K3s as a CNCF sandbox project](https://github.com/
 
 ---
 
-A simple way to manage helm charts with a Custom Resource Definitions in k8s. 
+A simple way to manage helm charts (v2 and v3) with a Custom Resource Definitions in k8s. 
 
 ## Manifests and Deploying
 The `./manifests` folder contains useful YAML manifests to use for deploying and developing the Helm Controller. This simply YAML deployment creates a HelmChart CRD + a Deployment using the `rancher/helm-controller` container. The YAML might need some modifications for your environment so read below for Namespaced vs Cluster deployments and how to use them properly.
