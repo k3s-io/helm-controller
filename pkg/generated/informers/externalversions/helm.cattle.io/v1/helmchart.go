@@ -19,12 +19,13 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	time "time"
 
-	helmcattleiov1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
-	versioned "github.com/rancher/helm-controller/pkg/generated/clientset/versioned"
-	internalinterfaces "github.com/rancher/helm-controller/pkg/generated/informers/externalversions/internalinterfaces"
-	v1 "github.com/rancher/helm-controller/pkg/generated/listers/helm.cattle.io/v1"
+	helmcattleiov1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	versioned "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
+	internalinterfaces "github.com/k3s-io/helm-controller/pkg/generated/informers/externalversions/internalinterfaces"
+	v1 "github.com/k3s-io/helm-controller/pkg/generated/listers/helm.cattle.io/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -61,13 +62,13 @@ func NewFilteredHelmChartInformer(client versioned.Interface, namespace string, 
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.HelmV1().HelmCharts(namespace).List(options)
+				return client.HelmV1().HelmCharts(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.HelmV1().HelmCharts(namespace).Watch(options)
+				return client.HelmV1().HelmCharts(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&helmcattleiov1.HelmChart{},

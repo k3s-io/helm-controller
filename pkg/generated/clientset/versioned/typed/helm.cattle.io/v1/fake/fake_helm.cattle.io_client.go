@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	v1 "github.com/rancher/helm-controller/pkg/generated/clientset/versioned/typed/helm.cattle.io/v1"
+	v1 "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned/typed/helm.cattle.io/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
@@ -30,6 +30,10 @@ type FakeHelmV1 struct {
 
 func (c *FakeHelmV1) HelmCharts(namespace string) v1.HelmChartInterface {
 	return &FakeHelmCharts{c, namespace}
+}
+
+func (c *FakeHelmV1) HelmChartConfigs(namespace string) v1.HelmChartConfigInterface {
+	return &FakeHelmChartConfigs{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

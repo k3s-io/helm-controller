@@ -21,7 +21,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -55,6 +55,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=helm.cattle.io, Version=v1
 	case v1.SchemeGroupVersion.WithResource("helmcharts"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Helm().V1().HelmCharts().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("helmchartconfigs"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Helm().V1().HelmChartConfigs().Informer()}, nil
 
 	}
 

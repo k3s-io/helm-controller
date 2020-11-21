@@ -1,4 +1,7 @@
-FROM golang:1.12.1-alpine3.9
+FROM golang:1.13.15-alpine3.12
+
+ARG DAPPER_HOST_ARCH
+ENV ARCH $DAPPER_HOST_ARCH
 
 RUN apk -U add bash git gcc musl-dev docker vim less file curl wget ca-certificates
 RUN go get -d golang.org/x/lint/golint && \
@@ -14,11 +17,14 @@ RUN if [ "${ARCH}" == "amd64" ]; then \
         curl -sL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s v1.15.0; \
     fi
 
+RUN curl -L https://github.com/rancher/rke/releases/download/v1.1.4/rke_linux-$ARCH \
+    --output /usr/local/bin/rke && chmod +x /usr/local/bin/rke
+
+ENV GO111MODULE off
 ENV DAPPER_ENV REPO TAG DRONE_TAG
-ENV DAPPER_SOURCE /go/src/github.com/rancher/helm-controller/
+ENV DAPPER_SOURCE /go/src/github.com/k3s-io/helm-controller/
 ENV DAPPER_OUTPUT ./bin ./dist
 ENV DAPPER_DOCKER_SOCKET true
-ENV TRASH_CACHE ${DAPPER_SOURCE}/.trash-cache
 ENV HOME ${DAPPER_SOURCE}
 WORKDIR ${DAPPER_SOURCE}
 

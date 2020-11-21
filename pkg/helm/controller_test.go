@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	v1 "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io/v1"
+	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/stretchr/testify/assert"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -14,9 +14,9 @@ import (
 func TestInstallJob(t *testing.T) {
 	assert := assert.New(t)
 	chart := NewChart()
-	job, _ := job(chart)
+	job, _, _ := job(chart)
 	assert.Equal("helm-install-traefik", job.Name)
-	assert.Equal(image, job.Spec.Template.Spec.Containers[0].Image)
+	assert.Equal(DefaultJobImage, job.Spec.Template.Spec.Containers[0].Image)
 	assert.Equal("helm-traefik", job.Spec.Template.Spec.ServiceAccountName)
 }
 
@@ -25,7 +25,7 @@ func TestDeleteJob(t *testing.T) {
 	chart := NewChart()
 	deleteTime := v12.NewTime(time.Time{})
 	chart.DeletionTimestamp = &deleteTime
-	job, _ := job(chart)
+	job, _, _ := job(chart)
 	assert.Equal("helm-delete-traefik", job.Name)
 }
 

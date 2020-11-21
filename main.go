@@ -8,8 +8,8 @@ import (
 	"context"
 	"os"
 
-	helmv1 "github.com/rancher/helm-controller/pkg/generated/controllers/helm.cattle.io"
-	helmcontroller "github.com/rancher/helm-controller/pkg/helm"
+	helmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
+	helmcontroller "github.com/k3s-io/helm-controller/pkg/helm"
 	batchv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/batch"
 	corev1 "github.com/rancher/wrangler-api/pkg/generated/controllers/core"
 	rbacv1 "github.com/rancher/wrangler-api/pkg/generated/controllers/rbac"
@@ -119,6 +119,7 @@ func run(c *cli.Context) error {
 
 	helmcontroller.Register(ctx, objectSetApply,
 		helms.Helm().V1().HelmChart(),
+		helms.Helm().V1().HelmChartConfig(),
 		batches.Batch().V1().Job(),
 		rbacs.Rbac().V1().ClusterRoleBinding(),
 		cores.Core().V1().ServiceAccount(),

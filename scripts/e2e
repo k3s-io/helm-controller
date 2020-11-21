@@ -1,0 +1,44 @@
+#!/bin/bash
+set -ex
+
+RKE_WAIT_TIME=60
+RKE_NODE_NAME=helmtest-node1
+
+cd $(dirname $0)/..
+
+setup_k8s(){
+    # Using vanilla k8s by creating rke dind cluster
+    cat <<EOF >> cluster.yml
+---
+nodes:
+- address: $RKE_NODE_NAME
+  user: docker
+  role: [controlplane,worker,etcd]
+EOF
+    DOCKER_API_VERSION=1.39 rke remove --dind --force || true
+    DOCKER_API_VERSION=1.39 rke -d up --dind --dind-dns-server "8.8.8.8"
+    sleep $RKE_WAIT_TIME
+}
+
+teardown_k8s(){
+    unset DOCKER_HOST
+    rke remove --dind --force || true
+    rm cluster.yml
+    rm cluster.rkestate
+    docker rm -vf rke-dind-${RKE_NODE_NAME} >/dev/null 2>&1
+}
+
+load_helm_image(){
+    # get the node ip and connect docker cli to it
+    export DOCKER_HOST=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' rke-dind-$RKE_NODE_NAME)
+    echo "$DOCKER_HOST"
+    docker image load -i bin/helm-controller-amd64.tar
+    unset DOCKER_HOST
+}
+
+trap teardown_k8s EXIT
+setup_k8s
+export KUBECONFIG=$PWD/kube_config_cluster.yml
+export HELM_CONTROLLER_IMAGE=$(cat bin/helm-controller-image.txt)
+load_helm_image
+go test -cover -tags=test -v ./test/...

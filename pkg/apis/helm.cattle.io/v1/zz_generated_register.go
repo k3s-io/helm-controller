@@ -21,14 +21,15 @@ limitations under the License.
 package v1
 
 import (
-	helm "github.com/rancher/helm-controller/pkg/apis/helm.cattle.io"
+	helm "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 var (
-	HelmChartResourceName = "helmcharts"
+	HelmChartResourceName       = "helmcharts"
+	HelmChartConfigResourceName = "helmchartconfigs"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -54,6 +55,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&HelmChart{},
 		&HelmChartList{},
+		&HelmChartConfig{},
+		&HelmChartConfigList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
