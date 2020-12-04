@@ -194,6 +194,11 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 		action = "delete"
 	}
 
+	targetNamespace := chart.Namespace
+	if len(chart.Spec.TargetNamespace) != 0 {
+		targetNamespace = chart.Spec.TargetNamespace
+	}
+
 	job := &batch.Job{
 		TypeMeta: meta.TypeMeta{
 			APIVersion: "batch/v1",
@@ -251,6 +256,10 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 								{
 									Name:  "HELM_VERSION",
 									Value: chart.Spec.HelmVersion,
+								},
+								{
+									Name:  "TARGET_NAMESPACE",
+									Value: targetNamespace,
 								},
 							},
 						},
