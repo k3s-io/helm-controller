@@ -39,7 +39,7 @@ type Controller struct {
 }
 
 const (
-	DefaultJobImage = "rancher/klipper-helm:v0.4.0"
+	DefaultJobImage = "rancher/klipper-helm:v0.4.1"
 	Label           = "helmcharts.helm.cattle.io/chart"
 	Annotation      = "helmcharts.helm.cattle.io/configHash"
 	CRDName         = "helmcharts.helm.cattle.io"
