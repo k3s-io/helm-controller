@@ -6,7 +6,7 @@ supporting the [acceptance of K3s as a CNCF sandbox project](https://github.com/
 
 ---
 
-A simple way to manage helm charts (v2 and v3) with a Custom Resource Definitions in k8s. 
+A simple way to manage helm charts (v2 and v3) with Custom Resource Definitions in k8s.
 
 ## Manifests and Deploying
 The `./manifests` folder contains useful YAML manifests to use for deploying and developing the Helm Controller. This simply YAML deployment creates a HelmChart CRD + a Deployment using the `rancher/helm-controller` container. The YAML might need some modifications for your environment so read below for Namespaced vs Cluster deployments and how to use them properly.
@@ -21,7 +21,7 @@ If you'd like your helm controller to watch the entire cluster for HelmChart CRD
 To remove the Helm Controller run `kubectl delete` and pass the deployment YAML used using to create the Deployment `-f` parameter.
 
 ## Developing and Building
-The Helm Controller is easy to get running locally, follow the instructions for your needs and requires a running k8s server + CRDs etc. When you have a working k8s cluster you can use can use `./manifests/crd.yaml` to create the CRD and `./manifests/example-helmchart.yaml` which runs the `stable/traefik` helm chart.
+The Helm Controller is easy to get running locally, follow the instructions for your needs and requires a running k8s server + CRDs etc. When you have a working k8s cluster, you can use `./manifests/crd.yaml` to create the CRD and `./manifests/example-helmchart.yaml` which runs the `stable/traefik` helm chart.
 
 #### Locally
 Building and running natively will start a daemon which will watch a local k8s API. See Manifests section above about how to to create the CRD and Objects using the provided manifests.
@@ -32,7 +32,7 @@ go build -o ./bin/helm-controller
 ```
 
 #### docker/k8s
-An easy way to get started with docker/k8s is to install docker for windows/mac and use the included k8s cluster. Once functioning you can easily build locally and get a docker container to pull the Helm Controller container and run it in k8s. Use `make` to launch  a linux container and build to create a container. Use the `./manifests/deploy-*.yaml` definitions to get it into your cluster and update  `containers.image` to point to your locally image e.g. `image: rancher/helm-controller:dev`
+An easy way to get started with docker/k8s is to install docker for windows/mac and use the included k8s cluster. Once functioning you can easily build locally and get a docker container to pull the Helm Controller container and run it in k8s. Use `make` to launch a Linux container and build to create a container. Use the `./manifests/deploy-*.yaml` definitions to get it into your cluster and update  `containers.image` to point to your locally image e.g. `image: rancher/helm-controller:dev`
 
 #### Options and Usage
 Use `./bin/helm-controller help` to get full usage details. The outside of a k8s Pod the most important options are `--kubeconfig` or `--masterurl` or it will not run. All options have corresponding ENV variables you could use.
