@@ -283,6 +283,10 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 				Value:    "true",
 				Effect:   "NoSchedule",
 			},
+			{
+				Key:      "CriticalAddonsOnly",
+				Operator: core.TolerationOpExists,
+			},
 		}
 		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, []core.EnvVar{
 			{
