@@ -284,6 +284,10 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 				Effect:   "NoSchedule",
 			},
 			{
+				Key:      "node-role.kubernetes.io/master",
+				Operator: core.TolerationOpExists,
+			},
+			{
 				Key:      "CriticalAddonsOnly",
 				Operator: core.TolerationOpExists,
 			},
