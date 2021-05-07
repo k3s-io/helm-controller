@@ -28,8 +28,9 @@ import (
 )
 
 var (
-	trueVal = true
-	commaRE = regexp.MustCompile(`\\*,`)
+	trueVal         = true
+	commaRE         = regexp.MustCompile(`\\*,`)
+	DefaultJobImage = "rancher/klipper-helm:v0.5.0-build20210505"
 )
 
 type Controller struct {
@@ -41,12 +42,11 @@ type Controller struct {
 }
 
 const (
-	DefaultJobImage = "rancher/klipper-helm:v0.5.0-build20210505"
-	Label           = "helmcharts.helm.cattle.io/chart"
-	Annotation      = "helmcharts.helm.cattle.io/configHash"
-	CRDName         = "helmcharts.helm.cattle.io"
-	ConfigCRDName   = "helmchartconfigs.helm.cattle.io"
-	Name            = "helm-controller"
+	Label         = "helmcharts.helm.cattle.io/chart"
+	Annotation    = "helmcharts.helm.cattle.io/configHash"
+	CRDName       = "helmcharts.helm.cattle.io"
+	ConfigCRDName = "helmchartconfigs.helm.cattle.io"
+	Name          = "helm-controller"
 )
 
 func Register(ctx context.Context, apply apply.Apply,
