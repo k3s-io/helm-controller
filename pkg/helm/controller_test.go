@@ -11,6 +11,30 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+func TestSetVals(t *testing.T) {
+	assert := assert.New(t)
+	tests := map[string]bool{
+		"":      false,
+		" ":     false,
+		"foo":   false,
+		"1.0":   false,
+		"0.1":   false,
+		"0":     true,
+		"1":     true,
+		"-1":    true,
+		"true":  true,
+		"TrUe":  true,
+		"false": true,
+		"FaLsE": true,
+		"null":  true,
+		"NuLl":  true,
+	}
+	for testString, isTyped := range tests {
+		ret := typedVal(intstr.Parse(testString))
+		assert.Equal(isTyped, ret, "expected typedVal(%s) = %t", testString, isTyped)
+	}
+}
+
 func TestInstallJob(t *testing.T) {
 	assert := assert.New(t)
 	chart := NewChart()
@@ -32,7 +56,13 @@ func TestDeleteJob(t *testing.T) {
 func TestInstallArgs(t *testing.T) {
 	assert := assert.New(t)
 	stringArgs := strings.Join(args(NewChart()), " ")
-	assert.Equal("install --set-string acme.dnsProvider.name=cloudflare --set rbac.enabled=true --set ssl.enabled=false", stringArgs)
+	assert.Equal("install "+
+		"--set-string acme.dnsProvider.name=cloudflare "+
+		"--set-string global.clusterCIDR=10.42.0.0/16\\,fd42::/48 "+
+		"--set-string global.systemDefaultRegistry= "+
+		"--set rbac.enabled=true "+
+		"--set ssl.enabled=false",
+		stringArgs)
 }
 
 func TestDeleteArgs(t *testing.T) {
@@ -45,15 +75,16 @@ func TestDeleteArgs(t *testing.T) {
 }
 
 func NewChart() *v1.HelmChart {
-	var set = make(map[string]intstr.IntOrString)
-	set["rbac.enabled"] = intstr.IntOrString{StrVal: "true"}
-	set["ssl.enabled"] = intstr.IntOrString{StrVal: "false"}
-	set["acme.dnsProvider.name"] = intstr.IntOrString{StrVal: "cloudflare"}
-
 	return v1.NewHelmChart("kube-system", "traefik", v1.HelmChart{
 		Spec: v1.HelmChartSpec{
 			Chart: "stable/traefik",
-			Set:   set,
+			Set: map[string]intstr.IntOrString{
+				"rbac.enabled":                 intstr.Parse("true"),
+				"ssl.enabled":                  intstr.Parse("false"),
+				"acme.dnsProvider.name":        intstr.Parse("cloudflare"),
+				"global.clusterCIDR":           intstr.Parse("10.42.0.0/16,fd42::/48"),
+				"global.systemDefaultRegistry": intstr.Parse(""),
+			},
 		},
 	})
 }
