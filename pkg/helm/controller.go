@@ -277,17 +277,27 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 		job.Spec.Template.Spec.Tolerations = []core.Toleration{
 			{
 				Key:    "node.kubernetes.io/not-ready",
-				Effect: "NoSchedule",
+				Effect: core.TaintEffectNoSchedule,
 			},
 			{
 				Key:      "node.cloudprovider.kubernetes.io/uninitialized",
 				Operator: core.TolerationOpEqual,
 				Value:    "true",
-				Effect:   "NoSchedule",
+				Effect:   core.TaintEffectNoSchedule,
 			},
 			{
 				Key:      "CriticalAddonsOnly",
 				Operator: core.TolerationOpExists,
+			},
+			{
+				Key:      "node-role.kubernetes.io/etcd",
+				Operator: core.TolerationOpExists,
+				Effect:   core.TaintEffectNoExecute,
+			},
+			{
+				Key:      "node-role.kubernetes.io/control-plane",
+				Operator: core.TolerationOpExists,
+				Effect:   core.TaintEffectNoSchedule,
 			},
 		}
 		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, []core.EnvVar{
