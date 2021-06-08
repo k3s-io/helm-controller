@@ -30,7 +30,7 @@ import (
 var (
 	trueVal         = true
 	commaRE         = regexp.MustCompile(`\\*,`)
-	DefaultJobImage = "rancher/klipper-helm:v0.5.0-build20210505"
+	DefaultJobImage = "rancher/klipper-helm:v0.6.0-build20210608"
 )
 
 type Controller struct {
@@ -270,6 +270,13 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 				},
 			},
 		},
+	}
+
+	if chart.Spec.Timeout != nil {
+		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, core.EnvVar{
+			Name:  "TIMEOUT",
+			Value: chart.Spec.Timeout.String(),
+		})
 	}
 
 	if chart.Spec.Bootstrap {
