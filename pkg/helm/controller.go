@@ -30,7 +30,7 @@ import (
 var (
 	trueVal         = true
 	commaRE         = regexp.MustCompile(`\\*,`)
-	DefaultJobImage = "rancher/klipper-helm:v0.6.0-build20210608"
+	DefaultJobImage = "rancher/klipper-helm:v0.6.1-build20210616"
 )
 
 type Controller struct {
