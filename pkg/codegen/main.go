@@ -16,7 +16,8 @@ func main() {
 					v1.HelmChart{},
 					v1.HelmChartConfig{},
 				},
-				GenerateTypes: true,
+				GenerateTypes:   true,
+				GenerateClients: true,
 			},
 		},
 	})
