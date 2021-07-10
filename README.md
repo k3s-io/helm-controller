@@ -24,7 +24,7 @@ To remove the Helm Controller run `kubectl delete` and pass the deployment YAML 
 The Helm Controller is easy to get running locally, follow the instructions for your needs and requires a running k8s server + CRDs etc. When you have a working k8s cluster, you can use `./manifests/crd.yaml` to create the CRD and `./manifests/example-helmchart.yaml` which runs the `stable/traefik` helm chart.
 
 #### Locally
-Building and running natively will start a daemon which will watch a local k8s API. See Manifests section above about how to to create the CRD and Objects using the provided manifests.
+Building and running natively will start a daemon which will watch a local k8s API. See Manifests section above about how to create the CRD and Objects using the provided manifests.
 
 ```
 go build -o ./bin/helm-controller
