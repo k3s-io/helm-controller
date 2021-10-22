@@ -31,7 +31,7 @@ var (
 	trueVal         = true
 	commaRE         = regexp.MustCompile(`\\*,`)
 	deletePolicy    = meta.DeletePropagationForeground
-	DefaultJobImage = "rancher/klipper-helm:v0.6.5-build20210915"
+	DefaultJobImage = "rancher/klipper-helm:v0.6.6-build20211022"
 )
 
 type Controller struct {
