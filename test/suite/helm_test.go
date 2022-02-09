@@ -116,7 +116,7 @@ var _ = Describe("Helm Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should upgrade the release successfully", func() {
-			Expect(pods[0].Status.ContainerStatuses[0].Image).To(BeEquivalentTo("traefik:1.7.20"))
+			Expect(pods[0].Status.ContainerStatuses[0].Image).To(BeEquivalentTo("docker.io/library/traefik:1.7.20"))
 		})
 	})
 
@@ -269,7 +269,7 @@ var _ = Describe("Helm Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should upgrade the release successfully", func() {
-			Expect(pods[0].Status.ContainerStatuses[0].Image).To(BeEquivalentTo("traefik:1.7.20"))
+			Expect(pods[0].Status.ContainerStatuses[0].Image).To(BeEquivalentTo("docker.io/library/traefik:1.7.20"))
 		})
 	})
 })
