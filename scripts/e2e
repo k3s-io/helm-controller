@@ -1,39 +1,27 @@
 #!/bin/bash
 set -ex
 
-RKE_WAIT_TIME=60
-RKE_NODE_NAME=helmtest-node1
+K3S_WAIT_TIME=15
+K3S_NODE_NAME=helmtest-node1
+K3S_VERSION=v1.22.6-k3s1
 
 cd $(dirname $0)/..
 
 setup_k8s(){
-    # Using vanilla k8s by creating rke dind cluster
-    cat <<EOF >> cluster.yml
----
-nodes:
-- address: $RKE_NODE_NAME
-  user: docker
-  role: [controlplane,worker,etcd]
-EOF
-    DOCKER_API_VERSION=1.39 rke remove --dind --force || true
-    DOCKER_API_VERSION=1.39 rke -d up --dind --dind-dns-server "8.8.8.8"
-    sleep $RKE_WAIT_TIME
+    # Using k3s with embedded helm controller disabled
+    docker pull rancher/k3s:$K3S_VERSION
+    docker run --detach --privileged --rm --publish 6443 --name $K3S_NODE_NAME --hostname $K3S_NODE_NAME rancher/k3s:$K3S_VERSION server --disable-helm-controller
+    K3S_NODE_IP=$(docker inspect $K3S_NODE_NAME --format='{{index .NetworkSettings.Networks "bridge" "IPAddress"}}')
+    sleep $K3S_WAIT_TIME
+    docker exec $K3S_NODE_NAME sed "s/127.0.0.1/$K3S_NODE_IP/" /etc/rancher/k3s/k3s.yaml > $PWD/kube_config_cluster.yml
 }
 
 teardown_k8s(){
-    unset DOCKER_HOST
-    rke remove --dind --force || true
-    rm cluster.yml
-    rm cluster.rkestate
-    docker rm -vf rke-dind-${RKE_NODE_NAME} >/dev/null 2>&1
+    docker rm -f $K3S_NODE_NAME
 }
 
 load_helm_image(){
-    # get the node ip and connect docker cli to it
-    export DOCKER_HOST=$(docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' rke-dind-$RKE_NODE_NAME)
-    echo "$DOCKER_HOST"
-    docker image load -i bin/helm-controller-amd64.tar
-    unset DOCKER_HOST
+    cat bin/helm-controller-amd64.tar | docker exec -i $K3S_NODE_NAME ctr --namespace k8s.io image import -
 }
 
 trap teardown_k8s EXIT
