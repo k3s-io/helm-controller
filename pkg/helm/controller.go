@@ -17,14 +17,20 @@ import (
 	rbaccontroller "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/rancher/wrangler/pkg/relatedresource"
+	"github.com/rancher/wrangler/pkg/schemes"
+	"github.com/sirupsen/logrus"
 	batch "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes"
+	typedv1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 )
 
@@ -41,6 +47,7 @@ type Controller struct {
 	confController helmcontroller.HelmChartConfigController
 	jobsCache      batchcontroller.JobCache
 	apply          apply.Apply
+	recorder       record.EventRecorder
 }
 
 const (
@@ -60,7 +67,9 @@ const (
 	FailurePolicyAbort     = "abort"
 )
 
-func Register(ctx context.Context, apply apply.Apply,
+func Register(ctx context.Context,
+	k8s kubernetes.Interface,
+	apply apply.Apply,
 	helms helmcontroller.HelmChartController,
 	confs helmcontroller.HelmChartConfigController,
 	jobs batchcontroller.JobController,
@@ -96,11 +105,20 @@ func Register(ctx context.Context, apply apply.Apply,
 		confs,
 		jobs)
 
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(logrus.Infof)
+	eventBroadcaster.StartRecordingToSink(&typedv1.EventSinkImpl{Interface: k8s.CoreV1().Events(meta.NamespaceSystem)})
+	eventSource := v1.EventSource{Component: Name}
+	if nodeName := os.Getenv("NODE_NAME"); nodeName != "" {
+		eventSource.Host = nodeName
+	}
+
 	controller := &Controller{
 		helmController: helms,
 		confController: confs,
 		jobsCache:      jobs.Cache(),
 		apply:          apply,
+		recorder:       eventBroadcaster.NewRecorder(schemes.All, eventSource),
 	}
 
 	helms.OnChange(ctx, Name, controller.OnHelmChange)
@@ -148,6 +166,7 @@ func (c *Controller) OnHelmChange(key string, chart *helmv1.HelmChart) (*helmv1.
 	objs.Add(valuesConfigMap)
 	objs.Add(job)
 
+	c.recorder.Eventf(chart, core.EventTypeNormal, "ApplyJob", "Applying HelmChart using Job %s/%s", job.Namespace, job.Name)
 	if err := c.apply.WithOwner(chart).Apply(objs); err != nil {
 		return chart, err
 	}
@@ -416,7 +435,7 @@ func serviceAccount(chart *helmv1.HelmChart) *core.ServiceAccount {
 			Name:      fmt.Sprintf("helm-%s", chart.Name),
 			Namespace: chart.Namespace,
 		},
-		AutomountServiceAccountToken: pointer.BoolPtr(true)
+		AutomountServiceAccountToken: pointer.BoolPtr(true),
 	}
 }
 

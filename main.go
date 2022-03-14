@@ -18,6 +18,7 @@ import (
 	"github.com/rancher/wrangler/pkg/start"
 	"github.com/urfave/cli"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 )
@@ -110,6 +111,11 @@ func run(c *cli.Context) error {
 		klog.Fatalf("Error building sample controllers: %s", err.Error())
 	}
 
+	k8sClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		klog.Fatalf("Error building kubernetes client: %s", err.Error())
+	}
+
 	discoverClient, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Error building discovery client: %s", err.Error())
@@ -117,7 +123,9 @@ func run(c *cli.Context) error {
 
 	objectSetApply := apply.New(discoverClient, apply.NewClientFactory(cfg))
 
-	helmcontroller.Register(ctx, objectSetApply,
+	helmcontroller.Register(ctx,
+		k8sClient,
+		objectSetApply,
 		helms.Helm().V1().HelmChart(),
 		helms.Helm().V1().HelmChartConfig(),
 		batches.Batch().V1().Job(),
