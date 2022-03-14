@@ -25,13 +25,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 )
 
 var (
-	trueVal         = true
-	commaRE         = regexp.MustCompile(`\\*,`)
-	deletePolicy    = meta.DeletePropagationForeground
-	DefaultJobImage = "rancher/klipper-helm:v0.6.8-build20211123"
+	commaRE              = regexp.MustCompile(`\\*,`)
+	deletePolicy         = meta.DeletePropagationForeground
+	DefaultJobImage      = "rancher/klipper-helm:v0.6.8-build20211123"
+	DefaultFailurePolicy = FailurePolicyReinstall
 )
 
 type Controller struct {
@@ -45,6 +46,7 @@ type Controller struct {
 const (
 	Label         = "helmcharts.helm.cattle.io/chart"
 	Annotation    = "helmcharts.helm.cattle.io/configHash"
+	Unmanaged     = "helmcharts.helm.cattle.io/unmanaged"
 	CRDName       = "helmcharts.helm.cattle.io"
 	ConfigCRDName = "helmchartconfigs.helm.cattle.io"
 	Name          = "helm-controller"
@@ -53,6 +55,9 @@ const (
 	LabelNodeRolePrefix        = "node-role.kubernetes.io/"
 	LabelControlPlaneSuffix    = "control-plane"
 	LabelEtcdSuffix            = "etcd"
+
+	FailurePolicyReinstall = "reinstall"
+	FailurePolicyAbort     = "abort"
 )
 
 func Register(ctx context.Context, apply apply.Apply,
@@ -101,6 +106,7 @@ func Register(ctx context.Context, apply apply.Apply,
 	helms.OnChange(ctx, Name, controller.OnHelmChange)
 	helms.OnRemove(ctx, Name, controller.OnHelmRemove)
 	confs.OnChange(ctx, Name, controller.OnConfChange)
+	confs.OnRemove(ctx, Name, controller.OnConfChange)
 }
 
 func (c *Controller) OnHelmChange(key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
@@ -110,11 +116,19 @@ func (c *Controller) OnHelmChange(key string, chart *helmv1.HelmChart) (*helmv1.
 	if chart.Spec.Chart == "" && chart.Spec.ChartContent == "" {
 		return chart, nil
 	}
+	if _, ok := chart.Annotations[Unmanaged]; ok {
+		return chart, nil
+	}
 
+	failurePolicy := DefaultFailurePolicy
 	objs := objectset.NewObjectSet()
 	job, valuesConfigMap, contentConfigMap := job(chart)
 	objs.Add(serviceAccount(chart))
 	objs.Add(roleBinding(chart))
+
+	if chart.Spec.FailurePolicy != "" {
+		failurePolicy = chart.Spec.FailurePolicy
+	}
 
 	if config, err := c.confController.Cache().Get(chart.Namespace, chart.Name); err != nil {
 		if !errors.IsNotFound(err) {
@@ -122,8 +136,12 @@ func (c *Controller) OnHelmChange(key string, chart *helmv1.HelmChart) (*helmv1.
 		}
 	} else if config != nil {
 		valuesConfigMapAddConfig(valuesConfigMap, config)
+		if config.Spec.FailurePolicy != "" {
+			failurePolicy = config.Spec.FailurePolicy
+		}
 	}
 
+	setFailurePolicy(job, failurePolicy)
 	hashConfigMaps(job, contentConfigMap, valuesConfigMap)
 
 	objs.Add(contentConfigMap)
@@ -144,6 +162,9 @@ func (c *Controller) OnHelmRemove(key string, chart *helmv1.HelmChart) (*helmv1.
 		return nil, nil
 	}
 	if chart.Spec.Chart == "" {
+		return chart, nil
+	}
+	if _, ok := chart.Annotations[Unmanaged]; ok {
 		return chart, nil
 	}
 
@@ -190,8 +211,6 @@ func (c *Controller) OnConfChange(key string, conf *helmv1.HelmChartConfig) (*he
 }
 
 func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap) {
-	oneThousand := int32(1000)
-
 	jobImage := strings.TrimSpace(chart.Spec.JobImage)
 	if jobImage == "" {
 		jobImage = DefaultJobImage
@@ -220,7 +239,7 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 			},
 		},
 		Spec: batch.JobSpec{
-			BackoffLimit: &oneThousand,
+			BackoffLimit: pointer.Int32Ptr(1000),
 			Template: core.PodTemplateSpec{
 				ObjectMeta: meta.ObjectMeta{
 					Annotations: map[string]string{},
@@ -397,7 +416,7 @@ func serviceAccount(chart *helmv1.HelmChart) *core.ServiceAccount {
 			Name:      fmt.Sprintf("helm-%s", chart.Name),
 			Namespace: chart.Namespace,
 		},
-		AutomountServiceAccountToken: &trueVal,
+		AutomountServiceAccountToken: pointer.BoolPtr(true)
 	}
 }
 
@@ -520,25 +539,21 @@ func contentConfigMap(chart *helmv1.HelmChart) *core.ConfigMap {
 func setValuesConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMap {
 	configMap := valuesConfigMap(chart)
 
-	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, []core.Volume{
-		{
-			Name: "values",
-			VolumeSource: core.VolumeSource{
-				ConfigMap: &core.ConfigMapVolumeSource{
-					LocalObjectReference: core.LocalObjectReference{
-						Name: configMap.Name,
-					},
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, core.Volume{
+		Name: "values",
+		VolumeSource: core.VolumeSource{
+			ConfigMap: &core.ConfigMapVolumeSource{
+				LocalObjectReference: core.LocalObjectReference{
+					Name: configMap.Name,
 				},
 			},
 		},
-	}...)
+	})
 
-	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, []core.VolumeMount{
-		{
-			MountPath: "/config",
-			Name:      "values",
-		},
-	}...)
+	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, core.VolumeMount{
+		MountPath: "/config",
+		Name:      "values",
+	})
 
 	return configMap
 }
@@ -549,27 +564,30 @@ func setContentConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMa
 		return nil
 	}
 
-	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, []core.Volume{
-		{
-			Name: "content",
-			VolumeSource: core.VolumeSource{
-				ConfigMap: &core.ConfigMapVolumeSource{
-					LocalObjectReference: core.LocalObjectReference{
-						Name: configMap.Name,
-					},
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, core.Volume{
+		Name: "content",
+		VolumeSource: core.VolumeSource{
+			ConfigMap: &core.ConfigMapVolumeSource{
+				LocalObjectReference: core.LocalObjectReference{
+					Name: configMap.Name,
 				},
 			},
 		},
-	}...)
+	})
 
-	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, []core.VolumeMount{
-		{
-			MountPath: "/chart",
-			Name:      "content",
-		},
-	}...)
+	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, core.VolumeMount{
+		MountPath: "/chart",
+		Name:      "content",
+	})
 
 	return configMap
+}
+
+func setFailurePolicy(job *batch.Job, failurePolicy string) {
+	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, core.EnvVar{
+		Name:  "FAILURE_POLICY",
+		Value: failurePolicy,
+	})
 }
 
 func hashConfigMaps(job *batch.Job, maps ...*core.ConfigMap) {
