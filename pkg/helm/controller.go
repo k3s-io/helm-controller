@@ -37,7 +37,7 @@ import (
 var (
 	commaRE              = regexp.MustCompile(`\\*,`)
 	deletePolicy         = meta.DeletePropagationForeground
-	DefaultJobImage      = "rancher/klipper-helm:v0.6.8-build20211123"
+	DefaultJobImage      = "rancher/klipper-helm:v0.7.0-build20220315"
 	DefaultFailurePolicy = FailurePolicyReinstall
 )
 
