@@ -391,6 +391,9 @@ func valuesConfigMap(chart *helmv1.HelmChart) *core.ConfigMap {
 	if chart.Spec.ValuesContent != "" {
 		configMap.Data["values-01_HelmChart.yaml"] = chart.Spec.ValuesContent
 	}
+	if chart.Spec.RepoCA != "" {
+		configMap.Data["ca-file.pem"] = chart.Spec.RepoCA
+	}
 
 	return configMap
 }
