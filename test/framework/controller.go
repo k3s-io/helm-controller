@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/k3s-io/helm-controller/pkg/helm"
+	helm "github.com/k3s-io/helm-controller/pkg/controllers/chart"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
