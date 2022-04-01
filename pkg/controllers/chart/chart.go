@@ -91,25 +91,6 @@ func Register(ctx context.Context,
 		return nil, err
 	})
 
-	relatedresource.Watch(ctx, "helm-pod-watch",
-		func(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
-			if job, ok := obj.(*batch.Job); ok {
-				name := job.Labels[Label]
-				if name != "" {
-					return []relatedresource.Key{
-						{
-							Name:      name,
-							Namespace: namespace,
-						},
-					}, nil
-				}
-			}
-			return nil, nil
-		},
-		helms,
-		confs,
-		jobs)
-
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(logrus.Infof)
 	eventBroadcaster.StartRecordingToSink(&typedv1.EventSinkImpl{Interface: k8s.CoreV1().Events(meta.NamespaceSystem)})
@@ -130,8 +111,40 @@ func Register(ctx context.Context,
 
 	helms.OnChange(ctx, Name, controller.OnHelmChange)
 	helms.OnRemove(ctx, Name, controller.OnHelmRemove)
-	confs.OnChange(ctx, Name, controller.OnConfChange)
-	confs.OnRemove(ctx, Name, controller.OnConfChange)
+
+	relatedresource.Watch(ctx, "resolve-helm-chart", controller.resolveHelmChart, helms, jobs, confs)
+}
+
+func (c *Controller) resolveHelmChart(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
+	if job, ok := obj.(*batch.Job); ok {
+		name := job.Labels[Label]
+		if name != "" {
+			return []relatedresource.Key{
+				{
+					Name:      name,
+					Namespace: namespace,
+				},
+			}, nil
+		}
+	}
+	if conf, ok := obj.(*helmv1.HelmChartConfig); ok {
+		chart, err := c.helmCache.Get(conf.Namespace, conf.Name)
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return nil, err
+			}
+		}
+		if chart == nil {
+			return nil, nil
+		}
+		return []relatedresource.Key{
+			{
+				Name:      conf.Name,
+				Namespace: conf.Namespace,
+			},
+		}, nil
+	}
+	return nil, nil
 }
 
 func (c *Controller) OnHelmChange(key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
@@ -219,21 +232,6 @@ func (c *Controller) OnHelmRemove(key string, chart *helmv1.HelmChart) (*helmv1.
 	}
 
 	return newChart, c.apply.WithOwner(newChart).Apply(objectset.NewObjectSet())
-}
-
-func (c *Controller) OnConfChange(key string, conf *helmv1.HelmChartConfig) (*helmv1.HelmChartConfig, error) {
-	if conf == nil {
-		return nil, nil
-	}
-
-	if chart, err := c.helmCache.Get(conf.Namespace, conf.Name); err != nil {
-		if !errors.IsNotFound(err) {
-			return conf, err
-		}
-	} else if chart != nil {
-		c.helmController.Enqueue(conf.Namespace, conf.Name)
-	}
-	return conf, nil
 }
 
 func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap) {
