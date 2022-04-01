@@ -1,56 +1,274 @@
-apiVersion: apiextensions.k8s.io/v1beta1
+{{- if .Capabilities.APIVersions.Has "apiextensions.k8s.io/v1" -}}
+apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: helmcharts.helm.cattle.io
-  namespace: kube-system
 spec:
   group: helm.cattle.io
-  version: v1
-  additionalPrinterColumns:
-  - name: Job
-    type: string
-    description: Job associated with updates to this chart
-    JSONPath: .status.jobName
-  - name: Chart
-    type: string
-    description: Helm Chart name
-    JSONPath: .spec.chart
-  - name: TargetNamespace
-    type: string
-    description: Helm Chart target namespace
-    JSONPath: .spec.targetNamespace
-  - name: Version
-    type: string
-    description: Helm Chart version
-    JSONPath: .spec.version
-  - name: Repo
-    type: string
-    description: Helm Chart repository URL
-    JSONPath: .spec.repo
-  - name: HelmVersion
-    type: string
-    description: Helm version used to manage the selected chart
-    JSONPath: .spec.helmVersion
-  - name: Bootstrap
-    type: boolean
-    description: True if this is chart is needed to bootstrap the cluster
-    JSONPath: .spec.bootstrap
   names:
     kind: HelmChart
     plural: helmcharts
     singular: helmchart
+  preserveUnknownFields: false
   scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Job associated with updates to this chart
+      jsonPath: .status.jobName
+      name: Job
+      type: string
+    - description: Helm Chart name
+      jsonPath: .spec.chart
+      name: Chart
+      type: string
+    - description: Helm Chart target namespace
+      jsonPath: .spec.targetNamespace
+      name: Target Namespace
+      type: string
+    - description: Helm Chart version
+      jsonPath: .spec.version
+      name: Version
+      type: string
+    - description: Helm Chart repository URL
+      jsonPath: .spec.repo
+      name: Repo
+      type: string
+    - description: Helm version used to manage the selected chart
+      jsonPath: .spec.helmVersion
+      name: Helm Version
+      type: string
+    - description: True if this is chart is needed to bootstrap the cluste
+      jsonPath: .spec.bootstrap
+      name: Bootstrap
+      type: boolean
+    name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              bootstrap:
+                type: boolean
+              chart:
+                nullable: true
+                type: string
+              chartContent:
+                nullable: true
+                type: string
+              failurePolicy:
+                nullable: true
+                type: string
+              helmVersion:
+                nullable: true
+                type: string
+              jobImage:
+                nullable: true
+                type: string
+              repo:
+                nullable: true
+                type: string
+              repoCA:
+                nullable: true
+                type: string
+              set:
+                additionalProperties:
+                  nullable: true
+                  type: string
+                nullable: true
+                type: object
+              targetNamespace:
+                nullable: true
+                type: string
+              timeout:
+                nullable: true
+                type: string
+              valuesContent:
+                nullable: true
+                type: string
+              version:
+                nullable: true
+                type: string
+            type: object
+          status:
+            properties:
+              jobName:
+                nullable: true
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: helmchartconfigs.helm.cattle.io
+spec:
+  group: helm.cattle.io
+  names:
+    kind: HelmChartConfig
+    plural: helmchartconfigs
+    singular: helmchartconfig
+  preserveUnknownFields: false
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              failurePolicy:
+                nullable: true
+                type: string
+              valuesContent:
+                nullable: true
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+{{- else -}}
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: helmcharts.helm.cattle.io
+spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.jobName
+    description: Job associated with updates to this chart
+    name: Job
+    type: string
+  - JSONPath: .spec.chart
+    description: Helm Chart name
+    name: Chart
+    type: string
+  - JSONPath: .spec.targetNamespace
+    description: Helm Chart target namespace
+    name: Target Namespace
+    type: string
+  - JSONPath: .spec.version
+    description: Helm Chart version
+    name: Version
+    type: string
+  - JSONPath: .spec.repo
+    description: Helm Chart repository URL
+    name: Repo
+    type: string
+  - JSONPath: .spec.helmVersion
+    description: Helm version used to manage the selected chart
+    name: Helm Version
+    type: string
+  - JSONPath: .spec.bootstrap
+    description: True if this is chart is needed to bootstrap the cluste
+    name: Bootstrap
+    type: boolean
+  group: helm.cattle.io
+  names:
+    kind: HelmChart
+    plural: helmcharts
+    singular: helmchart
+  preserveUnknownFields: false
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          properties:
+            bootstrap:
+              type: boolean
+            chart:
+              nullable: true
+              type: string
+            chartContent:
+              nullable: true
+              type: string
+            failurePolicy:
+              nullable: true
+              type: string
+            helmVersion:
+              nullable: true
+              type: string
+            jobImage:
+              nullable: true
+              type: string
+            repo:
+              nullable: true
+              type: string
+            repoCA:
+              nullable: true
+              type: string
+            set:
+              additionalProperties:
+                nullable: true
+                type: string
+              nullable: true
+              type: object
+            targetNamespace:
+              nullable: true
+              type: string
+            timeout:
+              nullable: true
+              type: string
+            valuesContent:
+              nullable: true
+              type: string
+            version:
+              nullable: true
+              type: string
+          type: object
+        status:
+          properties:
+            jobName:
+              nullable: true
+              type: string
+          type: object
+      type: object
+  version: v1
+  versions:
+  - name: v1
+    served: true
+    storage: true
+
 ---
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   name: helmchartconfigs.helm.cattle.io
-  namespace: kube-system
 spec:
   group: helm.cattle.io
-  version: v1
   names:
     kind: HelmChartConfig
     plural: helmchartconfigs
     singular: helmchartconfig
+  preserveUnknownFields: false
   scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          properties:
+            failurePolicy:
+              nullable: true
+              type: string
+            valuesContent:
+              nullable: true
+              type: string
+          type: object
+      type: object
+  version: v1
+  versions:
+  - name: v1
+    served: true
+    storage: true
+{{- end -}}
