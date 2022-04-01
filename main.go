@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"os"
 
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/controllers/chart"
@@ -77,7 +76,7 @@ func run(c *cli.Context) error {
 		klog.Infof("Starting helm controller in namespace: %s.", namespace)
 	}
 
-	ctx := signals.SetupSignalHandler(context.Background())
+	ctx := signals.SetupSignalContext()
 
 	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
 	if err != nil {
