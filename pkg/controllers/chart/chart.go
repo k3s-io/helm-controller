@@ -44,7 +44,9 @@ var (
 type Controller struct {
 	namespace      string
 	helmController helmcontroller.HelmChartController
+	helmCache      helmcontroller.HelmChartCache
 	confController helmcontroller.HelmChartConfigController
+	confCache      helmcontroller.HelmChartConfigCache
 	jobsCache      batchcontroller.JobCache
 	apply          apply.Apply
 	recorder       record.EventRecorder
@@ -71,8 +73,11 @@ func Register(ctx context.Context,
 	k8s kubernetes.Interface,
 	apply apply.Apply,
 	helms helmcontroller.HelmChartController,
+	helmCache helmcontroller.HelmChartCache,
 	confs helmcontroller.HelmChartConfigController,
+	confCache helmcontroller.HelmChartConfigCache,
 	jobs batchcontroller.JobController,
+	jobsCache batchcontroller.JobCache,
 	crbs rbaccontroller.ClusterRoleBindingController,
 	sas corecontroller.ServiceAccountController,
 	cm corecontroller.ConfigMapController) {
@@ -115,8 +120,10 @@ func Register(ctx context.Context,
 
 	controller := &Controller{
 		helmController: helms,
+		helmCache:      helmCache,
 		confController: confs,
-		jobsCache:      jobs.Cache(),
+		confCache:      confCache,
+		jobsCache:      jobsCache,
 		apply:          apply,
 		recorder:       eventBroadcaster.NewRecorder(schemes.All, eventSource),
 	}
@@ -148,7 +155,7 @@ func (c *Controller) OnHelmChange(key string, chart *helmv1.HelmChart) (*helmv1.
 		failurePolicy = chart.Spec.FailurePolicy
 	}
 
-	if config, err := c.confController.Cache().Get(chart.Namespace, chart.Name); err != nil {
+	if config, err := c.confCache.Get(chart.Namespace, chart.Name); err != nil {
 		if !errors.IsNotFound(err) {
 			return chart, err
 		}
@@ -219,7 +226,7 @@ func (c *Controller) OnConfChange(key string, conf *helmv1.HelmChartConfig) (*he
 		return nil, nil
 	}
 
-	if chart, err := c.helmController.Cache().Get(conf.Namespace, conf.Name); err != nil {
+	if chart, err := c.helmCache.Get(conf.Namespace, conf.Name); err != nil {
 		if !errors.IsNotFound(err) {
 			return conf, err
 		}
