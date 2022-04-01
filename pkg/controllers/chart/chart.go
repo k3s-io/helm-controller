@@ -55,7 +55,6 @@ var (
 )
 
 type Controller struct {
-	namespace      string
 	helmController helmcontroller.HelmChartController
 	helmCache      helmcontroller.HelmChartCache
 	confController helmcontroller.HelmChartConfigController
