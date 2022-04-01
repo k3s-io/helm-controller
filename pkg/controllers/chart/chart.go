@@ -31,6 +31,22 @@ import (
 	"k8s.io/utils/pointer"
 )
 
+const (
+	Label         = "helmcharts.helm.cattle.io/chart"
+	Annotation    = "helmcharts.helm.cattle.io/configHash"
+	Unmanaged     = "helmcharts.helm.cattle.io/unmanaged"
+	CRDName       = "helmcharts.helm.cattle.io"
+	ConfigCRDName = "helmchartconfigs.helm.cattle.io"
+
+	TaintExternalCloudProvider = "node.cloudprovider.kubernetes.io/uninitialized"
+	LabelNodeRolePrefix        = "node-role.kubernetes.io/"
+	LabelControlPlaneSuffix    = "control-plane"
+	LabelEtcdSuffix            = "etcd"
+
+	FailurePolicyReinstall = "reinstall"
+	FailurePolicyAbort     = "abort"
+)
+
 var (
 	commaRE              = regexp.MustCompile(`\\*,`)
 	deletePolicy         = metav1.DeletePropagationForeground
@@ -48,22 +64,6 @@ type Controller struct {
 	apply          apply.Apply
 	recorder       record.EventRecorder
 }
-
-const (
-	Label         = "helmcharts.helm.cattle.io/chart"
-	Annotation    = "helmcharts.helm.cattle.io/configHash"
-	Unmanaged     = "helmcharts.helm.cattle.io/unmanaged"
-	CRDName       = "helmcharts.helm.cattle.io"
-	ConfigCRDName = "helmchartconfigs.helm.cattle.io"
-
-	TaintExternalCloudProvider = "node.cloudprovider.kubernetes.io/uninitialized"
-	LabelNodeRolePrefix        = "node-role.kubernetes.io/"
-	LabelControlPlaneSuffix    = "control-plane"
-	LabelEtcdSuffix            = "etcd"
-
-	FailurePolicyReinstall = "reinstall"
-	FailurePolicyAbort     = "abort"
-)
 
 func Register(ctx context.Context,
 	k8s kubernetes.Interface,
