@@ -9,7 +9,7 @@ import (
 func main() {
 	controllergen.Run(args.Options{
 		OutputPackage: "github.com/k3s-io/helm-controller/pkg/generated",
-		Boilerplate:   "hack/boilerplate.go.txt",
+		Boilerplate:   "scripts/boilerplate.go.txt",
 		Groups: map[string]args.Group{
 			"helm.cattle.io": {
 				Types: []interface{}{
