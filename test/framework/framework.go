@@ -8,8 +8,8 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	helmapiv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	helm "github.com/k3s-io/helm-controller/pkg/controllers/chart"
 	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
-	"github.com/k3s-io/helm-controller/pkg/helm"
 	"github.com/onsi/ginkgo"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/crd"
