@@ -10,6 +10,7 @@ import (
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/helm"
+	"github.com/k3s-io/helm-controller/pkg/version"
 	"github.com/rancher/wrangler/pkg/apply"
 	batchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch"
 	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core"
@@ -23,14 +24,10 @@ import (
 	"k8s.io/klog"
 )
 
-var (
-	VERSION = "v0.0.0-dev"
-)
-
 func main() {
 	app := cli.NewApp()
 	app.Name = "helm-controller"
-	app.Version = VERSION
+	app.Version = version.FriendlyVersion()
 	app.Usage = "Helm Controller, to help with Helm deployments. Options kubeconfig or masterurl are required."
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
