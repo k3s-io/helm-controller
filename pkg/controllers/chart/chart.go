@@ -59,6 +59,7 @@ type Controller struct {
 	helmCache      helmcontroller.HelmChartCache
 	confController helmcontroller.HelmChartConfigController
 	confCache      helmcontroller.HelmChartConfigCache
+	jobs           batchcontroller.JobController
 	jobsCache      batchcontroller.JobCache
 	apply          apply.Apply
 	recorder       record.EventRecorder
@@ -78,30 +79,32 @@ func Register(ctx context.Context,
 	sas corecontroller.ServiceAccountController,
 	cm corecontroller.ConfigMapController) {
 
-	apply = apply.WithSetID(common.Name).
-		WithCacheTypes(helms, confs, jobs, crbs, sas, cm).
-		WithStrictCaching().WithPatcher(batch.SchemeGroupVersion.WithKind("Job"), func(namespace, name string, pt types.PatchType, data []byte) (runtime.Object, error) {
-		err := jobs.Delete(namespace, name, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
-		if err == nil {
-			return nil, fmt.Errorf("replace job")
-		}
-		return nil, err
-	})
-
 	controller := &Controller{
 		helmController: helms,
 		helmCache:      helmCache,
 		confController: confs,
 		confCache:      confCache,
+		jobs:           jobs,
 		jobsCache:      jobsCache,
-		apply:          apply,
 		recorder:       recorder,
 	}
+
+	controller.apply = apply.WithSetID(common.Name).
+		WithCacheTypes(helms, confs, jobs, crbs, sas, cm).
+		WithStrictCaching().WithPatcher(batch.SchemeGroupVersion.WithKind("Job"), controller.jobPatcher)
 
 	helms.OnChange(ctx, "on-helm-change", controller.OnHelmChange)
 	helms.OnRemove(ctx, "on-helm-remove", controller.OnHelmRemove)
 
 	relatedresource.Watch(ctx, "resolve-helm-chart", controller.resolveHelmChart, helms, jobs, confs)
+}
+
+func (c *Controller) jobPatcher(namespace, name string, pt types.PatchType, data []byte) (runtime.Object, error) {
+	err := c.jobs.Delete(namespace, name, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
+	if err == nil {
+		return nil, fmt.Errorf("replace job")
+	}
+	return nil, err
 }
 
 func (c *Controller) resolveHelmChart(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
