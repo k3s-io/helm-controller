@@ -10,13 +10,12 @@ import (
 	"strings"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
-	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	batchcontroller "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	corecontroller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	rbaccontroller "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
-	"github.com/rancher/wrangler/pkg/objectset"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	batch "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
@@ -55,14 +54,14 @@ var (
 )
 
 type Controller struct {
-	helmController helmcontroller.HelmChartController
-	helmCache      helmcontroller.HelmChartCache
-	confController helmcontroller.HelmChartConfigController
-	confCache      helmcontroller.HelmChartConfigCache
-	jobs           batchcontroller.JobController
-	jobsCache      batchcontroller.JobCache
-	apply          apply.Apply
-	recorder       record.EventRecorder
+	helms     helmcontroller.HelmChartController
+	helmCache helmcontroller.HelmChartCache
+	confs     helmcontroller.HelmChartConfigController
+	confCache helmcontroller.HelmChartConfigCache
+	jobs      batchcontroller.JobController
+	jobCache  batchcontroller.JobCache
+	apply     apply.Apply
+	recorder  record.EventRecorder
 }
 
 func Register(ctx context.Context,
@@ -74,29 +73,35 @@ func Register(ctx context.Context,
 	confs helmcontroller.HelmChartConfigController,
 	confCache helmcontroller.HelmChartConfigCache,
 	jobs batchcontroller.JobController,
-	jobsCache batchcontroller.JobCache,
+	jobCache batchcontroller.JobCache,
 	crbs rbaccontroller.ClusterRoleBindingController,
 	sas corecontroller.ServiceAccountController,
 	cm corecontroller.ConfigMapController) {
 
-	controller := &Controller{
-		helmController: helms,
-		helmCache:      helmCache,
-		confController: confs,
-		confCache:      confCache,
-		jobs:           jobs,
-		jobsCache:      jobsCache,
-		recorder:       recorder,
+	c := &Controller{
+		helms:     helms,
+		helmCache: helmCache,
+		confs:     confs,
+		confCache: confCache,
+		jobs:      jobs,
+		jobCache:  jobCache,
+		recorder:  recorder,
 	}
 
-	controller.apply = apply.WithSetID(common.Name).
+	c.apply = apply.
 		WithCacheTypes(helms, confs, jobs, crbs, sas, cm).
-		WithStrictCaching().WithPatcher(batch.SchemeGroupVersion.WithKind("Job"), controller.jobPatcher)
+		WithStrictCaching().
+		WithPatcher(batch.SchemeGroupVersion.WithKind("Job"), c.jobPatcher)
 
-	helms.OnChange(ctx, "on-helm-change", controller.OnHelmChange)
-	helms.OnRemove(ctx, "on-helm-remove", controller.OnHelmRemove)
+	relatedresource.Watch(ctx, "resolve-helm-chart-from-config", c.resolveHelmChartFromConfig, helms, confs)
 
-	relatedresource.Watch(ctx, "resolve-helm-chart", controller.resolveHelmChart, helms, jobs, confs)
+	helmcontroller.RegisterHelmChartGeneratingHandler(ctx, helms, c.apply, "", "helm-chart-registration", c.OnChange, nil)
+	helms.OnRemove(ctx, "on-helm-chart-remove", c.OnRemove)
+	relatedresource.Watch(ctx, "resolve-helm-chart-owned-resources",
+		relatedresource.OwnerResolver(true, helmv1.SchemeGroupVersion.String(), "HelmChart"),
+		helms,
+		jobs, crbs, sas, cm,
+	)
 }
 
 func (c *Controller) jobPatcher(namespace, name string, pt types.PatchType, data []byte) (runtime.Object, error) {
@@ -107,18 +112,7 @@ func (c *Controller) jobPatcher(namespace, name string, pt types.PatchType, data
 	return nil, err
 }
 
-func (c *Controller) resolveHelmChart(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
-	if job, ok := obj.(*batch.Job); ok {
-		name := job.Labels[Label]
-		if name != "" {
-			return []relatedresource.Key{
-				{
-					Name:      name,
-					Namespace: namespace,
-				},
-			}, nil
-		}
-	}
+func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if conf, ok := obj.(*helmv1.HelmChartConfig); ok {
 		chart, err := c.helmCache.Get(conf.Namespace, conf.Name)
 		if err != nil {
@@ -139,91 +133,140 @@ func (c *Controller) resolveHelmChart(namespace, name string, obj runtime.Object
 	return nil, nil
 }
 
-func (c *Controller) OnHelmChange(key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
-	if chart == nil {
-		return nil, nil
+func (c *Controller) OnChange(chart *helmv1.HelmChart, chartStatus helmv1.HelmChartStatus) ([]runtime.Object, helmv1.HelmChartStatus, error) {
+	if !shouldManage(chart) {
+		return nil, chartStatus, nil
 	}
-	if chart.Spec.Chart == "" && chart.Spec.ChartContent == "" {
-		return chart, nil
-	}
-	if _, ok := chart.Annotations[Unmanaged]; ok {
-		return chart, nil
+	if chart.DeletionTimestamp != nil {
+		// this should only be called if the chart is being installed or upgraded
+		return nil, chartStatus, nil
 	}
 
-	failurePolicy := DefaultFailurePolicy
-	objs := objectset.NewObjectSet()
-	job, valuesConfigMap, contentConfigMap := job(chart)
-	objs.Add(serviceAccount(chart))
-	objs.Add(roleBinding(chart))
-
-	if chart.Spec.FailurePolicy != "" {
-		failurePolicy = chart.Spec.FailurePolicy
+	job, objs, err := c.getJobAndRelatedResources(chart)
+	if err != nil {
+		return nil, chartStatus, err
 	}
+	// update status
+	chartStatus.JobName = job.Name
 
-	if config, err := c.confCache.Get(chart.Namespace, chart.Name); err != nil {
-		if !errors.IsNotFound(err) {
-			return chart, err
-		}
-	} else if config != nil {
-		valuesConfigMapAddConfig(valuesConfigMap, config)
-		if config.Spec.FailurePolicy != "" {
-			failurePolicy = config.Spec.FailurePolicy
-		}
-	}
-
-	setFailurePolicy(job, failurePolicy)
-	hashConfigMaps(job, contentConfigMap, valuesConfigMap)
-
-	objs.Add(contentConfigMap)
-	objs.Add(valuesConfigMap)
-	objs.Add(job)
-
+	// emit an event to indicate that this Helm chart is being applied
 	c.recorder.Eventf(chart, core.EventTypeNormal, "ApplyJob", "Applying HelmChart using Job %s/%s", job.Namespace, job.Name)
-	if err := c.apply.WithOwner(chart).Apply(objs); err != nil {
-		return chart, err
-	}
 
-	chartCopy := chart.DeepCopy()
-	chartCopy.Status.JobName = job.Name
-	return c.helmController.Update(chartCopy)
+	return append(objs, job), chartStatus, nil
 }
 
-func (c *Controller) OnHelmRemove(key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
-	if chart == nil {
-		return nil, nil
-	}
-	if chart.Spec.Chart == "" {
-		return chart, nil
-	}
-	if _, ok := chart.Annotations[Unmanaged]; ok {
+func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
+	if !shouldManage(chart) {
 		return chart, nil
 	}
 
-	job, _, _ := job(chart)
-	job, err := c.jobsCache.Get(chart.Namespace, job.Name)
+	job, objs, err := c.getJobAndRelatedResources(chart)
+	if err != nil {
+		return nil, err
+	}
 
+	// note: on the logic of running an apply here...
+	// if the uninstall job does not exist, it will create it
+	// if the job already exists and it is uninstalling, nothing will change since there's no need to patch
+	// if the job already exists but is tied to an install or upgrade, there will be a need to patch so
+	// the apply will execute the jobPatcher, which will delete the install/upgrade job and recreate a uninstall job
+	err = generic.ConfigureApplyForObject(c.apply, chart, nil).
+		WithOwner(chart).
+		WithSetID("helm-chart-registration").
+		ApplyObjects(append(objs, job)...)
+	if err != nil {
+		return nil, err
+	}
+
+	// once we have run the above logic, we can now check if the job is complete
+	job, err = c.jobCache.Get(chart.Namespace, job.Name)
 	if errors.IsNotFound(err) {
-		_, err := c.OnHelmChange(key, chart)
-		if err != nil {
-			return chart, err
-		}
+		// the above apply should have created it, something is wrong.
+		// if you are here, there must be a bug in the code.
+		return chart, fmt.Errorf("could not perform uninstall: expected job %s/%s to exist after apply, but not found", chart.Namespace, job.Name)
 	} else if err != nil {
 		return chart, err
 	}
 
+	// the first time we call this, the job will definitely not be complete... however,
+	// throwing an error here will re-enqueue this controller, which will process the apply again
+	// and get the job object from the cache to check again
 	if job.Status.Succeeded <= 0 {
-		return chart, fmt.Errorf("waiting for delete of helm chart for %s by %s", key, job.Name)
+		// temporarily recreate the chart, but keep the deletion timestamp
+		chartCopy := chart.DeepCopy()
+		chartCopy.Status.JobName = job.Name
+		newChart, err := c.helms.Update(chartCopy)
+		if err != nil {
+			return chart, fmt.Errorf("unable to update status of helm chart to add uninstall job name %s", chartCopy.Status.JobName)
+		}
+		return newChart, fmt.Errorf("waiting for delete of helm chart for %s by %s", key, job.Name)
 	}
 
-	chartCopy := chart.DeepCopy()
-	chartCopy.Status.JobName = job.Name
-	newChart, err := c.helmController.Update(chartCopy)
+	// uninstall job has successfully finished!
+	c.recorder.Eventf(chart, core.EventTypeNormal, "RemoveJob", "Uninstalled HelmChart using Job %s/%s, removing resources", job.Namespace, job.Name)
 
+	// note: an empty apply removes all resources owned by this chart
+	err = generic.ConfigureApplyForObject(c.apply, chart, nil).
+		WithOwner(chart).
+		WithSetID("helm-chart-registration").
+		ApplyObjects()
 	if err != nil {
-		return newChart, err
+		return nil, fmt.Errorf("unable to remove resources tied to HelmChart %s/%s: %s", chart.Namespace, chart.Name, err)
 	}
 
-	return newChart, c.apply.WithOwner(newChart).Apply(objectset.NewObjectSet())
+	return chart, nil
+}
+
+func shouldManage(chart *helmv1.HelmChart) bool {
+	if chart == nil {
+		return false
+	}
+	if chart.Spec.Chart == "" && chart.Spec.ChartContent == "" {
+		return false
+	}
+	if _, ok := chart.Annotations[Unmanaged]; ok {
+		return false
+	}
+	return true
+}
+
+func (c *Controller) getJobAndRelatedResources(chart *helmv1.HelmChart) (*batch.Job, []runtime.Object, error) {
+	// set a default failure policy
+	failurePolicy := DefaultFailurePolicy
+	if chart.Spec.FailurePolicy != "" {
+		failurePolicy = chart.Spec.FailurePolicy
+	}
+
+	// get the default job and configmaps
+	job, valuesConfigMap, contentConfigMap := job(chart)
+
+	// check if a HelmChartConfig is registered for this Helm chart
+	config, err := c.confCache.Get(chart.Namespace, chart.Name)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, nil, err
+		}
+	}
+	if config != nil {
+		// Merge the values into the HelmChart's values
+		valuesConfigMapAddConfig(valuesConfigMap, config)
+		// Override the failure policy to what is provided in the HelmChartConfig
+		if config.Spec.FailurePolicy != "" {
+			failurePolicy = config.Spec.FailurePolicy
+		}
+	}
+	// set the failure policy and add additional annotations to the job
+	// note: the purpose of the additional annotation is to cause the job to be destroyed
+	// and recreated if the hash of the HelmChartConfig changes while it is being processed
+	setFailurePolicy(job, failurePolicy)
+	hashConfigMaps(job, contentConfigMap, valuesConfigMap)
+
+	return job, []runtime.Object{
+		valuesConfigMap,
+		contentConfigMap,
+		serviceAccount(chart),
+		roleBinding(chart),
+	}, nil
 }
 
 func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap) {
