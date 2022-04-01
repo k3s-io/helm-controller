@@ -61,8 +61,11 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.K8s,
 		appCtx.Apply,
 		appCtx.HelmChart(),
+		appCtx.HelmChart().Cache(),
 		appCtx.HelmChartConfig(),
+		appCtx.HelmChartConfig().Cache(),
 		appCtx.Batch.Job(),
+		appCtx.Batch.Job().Cache(),
 		appCtx.RBAC.ClusterRoleBinding(),
 		appCtx.Core.ServiceAccount(),
 		appCtx.Core.ConfigMap())
