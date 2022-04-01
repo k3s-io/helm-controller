@@ -1,134 +1,84 @@
 package main
 
 import (
-	"os"
+	"log"
+	"net/http"
+	_ "net/http/pprof"
 
-	helmcontroller "github.com/k3s-io/helm-controller/pkg/controllers/chart"
-	helmv1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
+	"github.com/k3s-io/helm-controller/pkg/controllers"
+	"github.com/k3s-io/helm-controller/pkg/controllers/common"
+	"github.com/k3s-io/helm-controller/pkg/crd"
 	"github.com/k3s-io/helm-controller/pkg/version"
-	"github.com/rancher/wrangler/pkg/apply"
-	batchv1 "github.com/rancher/wrangler/pkg/generated/controllers/batch"
-	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core"
-	rbacv1 "github.com/rancher/wrangler/pkg/generated/controllers/rbac"
-	"github.com/rancher/wrangler/pkg/signals"
-	"github.com/rancher/wrangler/pkg/start"
-	"github.com/urfave/cli"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/kubernetes"
+	command "github.com/rancher/wrangler-cli"
+	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
+	_ "github.com/rancher/wrangler/pkg/generated/controllers/networking.k8s.io"
+	"github.com/rancher/wrangler/pkg/kubeconfig"
+	"github.com/rancher/wrangler/pkg/ratelimit"
+	"github.com/spf13/cobra"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/klog"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-func main() {
-	app := cli.NewApp()
-	app.Name = "helm-controller"
-	app.Version = version.FriendlyVersion()
-	app.Usage = "Helm Controller, to help with Helm deployments. Options kubeconfig or masterurl are required."
-	app.Flags = []cli.Flag{
-		cli.StringFlag{
-			Name:   "kubeconfig, k",
-			EnvVar: "KUBECONFIG",
-			Value:  "",
-			Usage:  "Kubernetes config files, e.g. $HOME/.kube/config",
-		},
-		cli.StringFlag{
-			Name:   "master, m",
-			EnvVar: "MASTERURL",
-			Value:  "",
-			Usage:  "Kubernetes cluster master URL.",
-		},
-		cli.StringFlag{
-			Name:   "namespace, n",
-			EnvVar: "NAMESPACE",
-			Value:  "",
-			Usage:  "Namespace to watch, empty means it will watch CRDs in all namespaces.",
-		},
-		cli.IntFlag{
-			Name:   "threads, t",
-			EnvVar: "THREADS",
-			Value:  2,
-			Usage:  "Threadiness level to set, defaults to 2.",
-		},
-	}
-	app.Action = run
+var (
+	debugConfig command.DebugConfig
+)
 
-	if err := app.Run(os.Args); err != nil {
-		klog.Fatal(err)
-	}
+type HelmController struct {
+	Kubeconfig string `short:"k" usage:"Kubernetes config files, e.g. $HOME/.kube/config" env:"KUBECONFIG"`
+	MasterURL  string `short:"m" usage:"Kubernetes cluster master URL" env:"MASTERURL"`
+	Namespace  string `short:"n" usage:"Namespace to watch, empty means it will watch CRDs in all namespaces." env:"NAMESPACE"`
+	Threads    int    `short:"t" usage:"Threadiness level to set, defaults to 2." default:"2" env:"THREADS"`
 }
 
-func run(c *cli.Context) error {
-	masterURL := c.String("master")
-	kubeconfig := c.String("kubeconfig")
-	namespace := c.String("namespace")
-	threadiness := c.Int("threads")
+func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+	debugConfig.MustSetupDebug()
 
-	if threadiness <= 0 {
-		klog.Infof("Can not start with thread count of %d, please pass a proper thread count.", threadiness)
-		return nil
-	}
+	cfg := a.GetNonInteractiveClientConfig()
 
-	klog.Infof("Starting helm controller with %d threads.", threadiness)
-
-	if namespace == "" {
-		klog.Info("Starting helm controller with no namespace.")
-	} else {
-		klog.Infof("Starting helm controller in namespace: %s.", namespace)
-	}
-
-	ctx := signals.SetupSignalContext()
-
-	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
+	clientConfig, err := cfg.ClientConfig()
 	if err != nil {
-		klog.Fatalf("Error building config from flags: %s", err.Error())
+		return err
+	}
+	clientConfig.RateLimiter = ratelimit.None
+
+	ctx := cmd.Context()
+	if err := crd.Create(ctx, clientConfig); err != nil {
+		return err
 	}
 
-	helms, err := helmv1.NewFactoryFromConfigWithNamespace(cfg, namespace)
-	if err != nil {
-		klog.Fatalf("Error building sample controllers: %s", err.Error())
+	opts := common.Options{
+		Threadiness: a.Threads,
 	}
 
-	batches, err := batchv1.NewFactoryFromConfigWithNamespace(cfg, namespace)
-	if err != nil {
-		klog.Fatalf("Error building sample controllers: %s", err.Error())
+	if err := opts.Validate(); err != nil {
+		return err
 	}
 
-	rbacs, err := rbacv1.NewFactoryFromConfigWithNamespace(cfg, namespace)
-	if err != nil {
-		klog.Fatalf("Error building sample controllers: %s", err.Error())
+	if err := controllers.Register(ctx, a.Namespace, cfg, opts); err != nil {
+		return err
 	}
 
-	cores, err := corev1.NewFactoryFromConfigWithNamespace(cfg, namespace)
-	if err != nil {
-		klog.Fatalf("Error building sample controllers: %s", err.Error())
-	}
-
-	k8sClient, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		klog.Fatalf("Error building kubernetes client: %s", err.Error())
-	}
-
-	discoverClient, err := discovery.NewDiscoveryClientForConfig(cfg)
-	if err != nil {
-		klog.Fatalf("Error building discovery client: %s", err.Error())
-	}
-
-	objectSetApply := apply.New(discoverClient, apply.NewClientFactory(cfg))
-
-	helmcontroller.Register(ctx,
-		k8sClient,
-		objectSetApply,
-		helms.Helm().V1().HelmChart(),
-		helms.Helm().V1().HelmChartConfig(),
-		batches.Batch().V1().Job(),
-		rbacs.Rbac().V1().ClusterRoleBinding(),
-		cores.Core().V1().ServiceAccount(),
-		cores.Core().V1().ConfigMap())
-
-	if err := start.All(ctx, threadiness, helms, batches, rbacs, cores); err != nil {
-		klog.Fatalf("Error starting: %s", err.Error())
-	}
-
-	<-ctx.Done()
+	<-cmd.Context().Done()
 	return nil
+}
+
+func (a *HelmController) GetNonInteractiveClientConfig() clientcmd.ClientConfig {
+	// Modified https://github.com/rancher/wrangler/blob/3ecd23dfea3bb4c76cbe8e06fb158eed6ae3dd31/pkg/kubeconfig/loader.go#L12-L32
+	return clientcmd.NewInteractiveDeferredLoadingClientConfig(
+		kubeconfig.GetLoadingRules(a.Kubeconfig),
+		&clientcmd.ConfigOverrides{
+			ClusterDefaults: clientcmd.ClusterDefaults,
+			ClusterInfo:     clientcmdapi.Cluster{Server: a.MasterURL},
+		}, nil)
+}
+
+func main() {
+	cmd := command.Command(&HelmController{}, cobra.Command{
+		Version: version.FriendlyVersion(),
+	})
+	cmd = command.AddDebug(cmd, &debugConfig)
+	command.Main(cmd)
 }
