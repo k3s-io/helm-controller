@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	batchcontroller "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
@@ -17,26 +18,22 @@ import (
 	rbaccontroller "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/objectset"
 	"github.com/rancher/wrangler/pkg/relatedresource"
-	"github.com/rancher/wrangler/pkg/schemes"
-	"github.com/sirupsen/logrus"
 	batch "k8s.io/api/batch/v1"
 	core "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
-	typedv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 )
 
 var (
 	commaRE              = regexp.MustCompile(`\\*,`)
-	deletePolicy         = meta.DeletePropagationForeground
+	deletePolicy         = metav1.DeletePropagationForeground
 	DefaultJobImage      = "rancher/klipper-helm:v0.7.0-build20220315"
 	DefaultFailurePolicy = FailurePolicyReinstall
 )
@@ -58,7 +55,6 @@ const (
 	Unmanaged     = "helmcharts.helm.cattle.io/unmanaged"
 	CRDName       = "helmcharts.helm.cattle.io"
 	ConfigCRDName = "helmchartconfigs.helm.cattle.io"
-	Name          = "helm-controller"
 
 	TaintExternalCloudProvider = "node.cloudprovider.kubernetes.io/uninitialized"
 	LabelNodeRolePrefix        = "node-role.kubernetes.io/"
@@ -72,6 +68,7 @@ const (
 func Register(ctx context.Context,
 	k8s kubernetes.Interface,
 	apply apply.Apply,
+	recorder record.EventRecorder,
 	helms helmcontroller.HelmChartController,
 	helmCache helmcontroller.HelmChartCache,
 	confs helmcontroller.HelmChartConfigController,
@@ -81,23 +78,16 @@ func Register(ctx context.Context,
 	crbs rbaccontroller.ClusterRoleBindingController,
 	sas corecontroller.ServiceAccountController,
 	cm corecontroller.ConfigMapController) {
-	apply = apply.WithSetID(Name).
+
+	apply = apply.WithSetID(common.Name).
 		WithCacheTypes(helms, confs, jobs, crbs, sas, cm).
 		WithStrictCaching().WithPatcher(batch.SchemeGroupVersion.WithKind("Job"), func(namespace, name string, pt types.PatchType, data []byte) (runtime.Object, error) {
-		err := jobs.Delete(namespace, name, &meta.DeleteOptions{PropagationPolicy: &deletePolicy})
+		err := jobs.Delete(namespace, name, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
 		if err == nil {
 			return nil, fmt.Errorf("replace job")
 		}
 		return nil, err
 	})
-
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(logrus.Infof)
-	eventBroadcaster.StartRecordingToSink(&typedv1.EventSinkImpl{Interface: k8s.CoreV1().Events(meta.NamespaceSystem)})
-	eventSource := v1.EventSource{Component: Name}
-	if nodeName := os.Getenv("NODE_NAME"); nodeName != "" {
-		eventSource.Host = nodeName
-	}
 
 	controller := &Controller{
 		helmController: helms,
@@ -106,11 +96,11 @@ func Register(ctx context.Context,
 		confCache:      confCache,
 		jobsCache:      jobsCache,
 		apply:          apply,
-		recorder:       eventBroadcaster.NewRecorder(schemes.All, eventSource),
+		recorder:       recorder,
 	}
 
-	helms.OnChange(ctx, Name, controller.OnHelmChange)
-	helms.OnRemove(ctx, Name, controller.OnHelmRemove)
+	helms.OnChange(ctx, "on-helm-change", controller.OnHelmChange)
+	helms.OnRemove(ctx, "on-helm-remove", controller.OnHelmRemove)
 
 	relatedresource.Watch(ctx, "resolve-helm-chart", controller.resolveHelmChart, helms, jobs, confs)
 }
@@ -251,11 +241,11 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 	}
 
 	job := &batch.Job{
-		TypeMeta: meta.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			APIVersion: "batch/v1",
 			Kind:       "Job",
 		},
-		ObjectMeta: meta.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("helm-%s-%s", action, chart.Name),
 			Namespace: chart.Namespace,
 			Labels: map[string]string{
@@ -265,7 +255,7 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 		Spec: batch.JobSpec{
 			BackoffLimit: pointer.Int32Ptr(1000),
 			Template: core.PodTemplateSpec{
-				ObjectMeta: meta.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{},
 					Labels: map[string]string{
 						Label: chart.Name,
@@ -382,11 +372,11 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 
 func valuesConfigMap(chart *helmv1.HelmChart) *core.ConfigMap {
 	var configMap = &core.ConfigMap{
-		TypeMeta: meta.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
 		},
-		ObjectMeta: meta.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("chart-values-%s", chart.Name),
 			Namespace: chart.Namespace,
 		},
@@ -411,11 +401,11 @@ func valuesConfigMapAddConfig(configMap *core.ConfigMap, config *helmv1.HelmChar
 
 func roleBinding(chart *helmv1.HelmChart) *rbac.ClusterRoleBinding {
 	return &rbac.ClusterRoleBinding{
-		TypeMeta: meta.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			APIVersion: "rbac.authorization.k8s.io/v1",
 			Kind:       "ClusterRoleBinding",
 		},
-		ObjectMeta: meta.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: fmt.Sprintf("helm-%s-%s", chart.Namespace, chart.Name),
 		},
 		RoleRef: rbac.RoleRef{
@@ -435,11 +425,11 @@ func roleBinding(chart *helmv1.HelmChart) *rbac.ClusterRoleBinding {
 
 func serviceAccount(chart *helmv1.HelmChart) *core.ServiceAccount {
 	return &core.ServiceAccount{
-		TypeMeta: meta.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ServiceAccount",
 		},
-		ObjectMeta: meta.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("helm-%s", chart.Name),
 			Namespace: chart.Namespace,
 		},
@@ -544,11 +534,11 @@ func setProxyEnv(job *batch.Job) {
 
 func contentConfigMap(chart *helmv1.HelmChart) *core.ConfigMap {
 	configMap := &core.ConfigMap{
-		TypeMeta: meta.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
 		},
-		ObjectMeta: meta.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("chart-content-%s", chart.Name),
 			Namespace: chart.Namespace,
 		},

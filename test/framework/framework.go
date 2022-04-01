@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	helmapiv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
-	helm "github.com/k3s-io/helm-controller/pkg/controllers/chart"
+	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
 	"github.com/onsi/ginkgo"
 	"github.com/rancher/wrangler/pkg/condition"
@@ -79,8 +79,8 @@ func (f *Framework) beforeFramework() {
 	f.HelmClientSet = helmcln
 	f.ClientSet = clientset
 	f.crdFactory = crdFactory
-	f.Name = helm.Name
-	f.Namespace = helm.Name
+	f.Name = common.Name
+	f.Namespace = common.Name
 
 }
 

@@ -28,6 +28,7 @@ type HelmController struct {
 	MasterURL  string `short:"m" usage:"Kubernetes cluster master URL" env:"MASTERURL"`
 	Namespace  string `short:"n" usage:"Namespace to watch, empty means it will watch CRDs in all namespaces." env:"NAMESPACE"`
 	Threads    int    `short:"t" usage:"Threadiness level to set, defaults to 2." default:"2" env:"THREADS"`
+	NodeName   string `usage:"Name of the node this controller is running on" env:"NODE_NAME"`
 }
 
 func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
@@ -51,6 +52,7 @@ func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
 
 	opts := common.Options{
 		Threadiness: a.Threads,
+		NodeName:    a.NodeName,
 	}
 
 	if err := opts.Validate(); err != nil {
