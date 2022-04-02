@@ -61,6 +61,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 	}
 
 	chart.Register(ctx,
+		systemNamespace,
 		appCtx.K8s,
 		appCtx.Apply,
 		appCtx.EventRecorder,

@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 )
 
@@ -54,17 +55,19 @@ var (
 )
 
 type Controller struct {
-	helms     helmcontroller.HelmChartController
-	helmCache helmcontroller.HelmChartCache
-	confs     helmcontroller.HelmChartConfigController
-	confCache helmcontroller.HelmChartConfigCache
-	jobs      batchcontroller.JobController
-	jobCache  batchcontroller.JobCache
-	apply     apply.Apply
-	recorder  record.EventRecorder
+	systemNamespace string
+	helms           helmcontroller.HelmChartController
+	helmCache       helmcontroller.HelmChartCache
+	confs           helmcontroller.HelmChartConfigController
+	confCache       helmcontroller.HelmChartConfigCache
+	jobs            batchcontroller.JobController
+	jobCache        batchcontroller.JobCache
+	apply           apply.Apply
+	recorder        record.EventRecorder
 }
 
 func Register(ctx context.Context,
+	systemNamespace string,
 	k8s kubernetes.Interface,
 	apply apply.Apply,
 	recorder record.EventRecorder,
@@ -78,14 +81,21 @@ func Register(ctx context.Context,
 	sas corecontroller.ServiceAccountController,
 	cm corecontroller.ConfigMapController) {
 
+	if len(systemNamespace) == 0 {
+		klog.Info("Starting helm controller on all namespaces")
+	} else {
+		klog.Infof("Starting helm controller in namespace: %s.", systemNamespace)
+	}
+
 	c := &Controller{
-		helms:     helms,
-		helmCache: helmCache,
-		confs:     confs,
-		confCache: confCache,
-		jobs:      jobs,
-		jobCache:  jobCache,
-		recorder:  recorder,
+		systemNamespace: systemNamespace,
+		helms:           helms,
+		helmCache:       helmCache,
+		confs:           confs,
+		confCache:       confCache,
+		jobs:            jobs,
+		jobCache:        jobCache,
+		recorder:        recorder,
 	}
 
 	c.apply = apply.
@@ -113,6 +123,10 @@ func (c *Controller) jobPatcher(namespace, name string, pt types.PatchType, data
 }
 
 func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
+	if len(c.systemNamespace) > 0 && namespace != c.systemNamespace {
+		// do nothing if it's not in the namespace this controller was registered with
+		return nil, nil
+	}
 	if conf, ok := obj.(*helmv1.HelmChartConfig); ok {
 		chart, err := c.helmCache.Get(conf.Namespace, conf.Name)
 		if err != nil {
@@ -134,7 +148,7 @@ func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runt
 }
 
 func (c *Controller) OnChange(chart *helmv1.HelmChart, chartStatus helmv1.HelmChartStatus) ([]runtime.Object, helmv1.HelmChartStatus, error) {
-	if !shouldManage(chart) {
+	if !c.shouldManage(chart) {
 		return nil, chartStatus, nil
 	}
 	if chart.DeletionTimestamp != nil {
@@ -156,7 +170,7 @@ func (c *Controller) OnChange(chart *helmv1.HelmChart, chartStatus helmv1.HelmCh
 }
 
 func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
-	if !shouldManage(chart) {
+	if !c.shouldManage(chart) {
 		return chart, nil
 	}
 
@@ -217,8 +231,12 @@ func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.Helm
 	return chart, nil
 }
 
-func shouldManage(chart *helmv1.HelmChart) bool {
+func (c *Controller) shouldManage(chart *helmv1.HelmChart) bool {
 	if chart == nil {
+		return false
+	}
+	if len(c.systemNamespace) > 0 && chart.Namespace != c.systemNamespace {
+		// do nothing if it's not in the namespace this controller was registered with
 		return false
 	}
 	if chart.Spec.Chart == "" && chart.Spec.ChartContent == "" {
