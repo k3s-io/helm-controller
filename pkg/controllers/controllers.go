@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/k3s-io/helm-controller/pkg/controllers/chart"
@@ -56,16 +55,13 @@ func (a *appContext) start(ctx context.Context) error {
 }
 
 func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, opts common.Options) error {
-	if len(systemNamespace) == 0 {
-		return errors.New("cannot start controllers on system namespace: system namespace not provided")
-	}
-
 	appCtx, err := newContext(cfg, systemNamespace, opts)
 	if err != nil {
 		return err
 	}
 
 	chart.Register(ctx,
+		systemNamespace,
 		appCtx.K8s,
 		appCtx.Apply,
 		appCtx.EventRecorder,
