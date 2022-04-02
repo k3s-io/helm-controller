@@ -19,6 +19,7 @@ import (
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/generated/controllers/rbac"
 	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
+	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/ratelimit"
 	"github.com/rancher/wrangler/pkg/schemes"
@@ -145,37 +146,41 @@ func newContext(cfg clientcmd.ClientConfig, systemNamespace string, opts common.
 		return nil, err
 	}
 
-	core, err := core.NewFactoryFromConfigWithOptions(client, &core.FactoryOptions{
+	core, err := core.NewFactoryFromConfigWithOptions(client, &generic.FactoryOptions{
 		SharedControllerFactory: scf,
+		Namespace:               systemNamespace,
 	})
 	if err != nil {
 		return nil, err
 	}
 	corev := core.Core().V1()
 
-	clientConfig, err := cfg.ClientConfig()
+	batch, err := batch.NewFactoryFromConfigWithOptions(client, &generic.FactoryOptions{
+		SharedControllerFactory: scf,
+		Namespace:               systemNamespace,
+	})
 	if err != nil {
 		return nil, err
 	}
-	clientConfig.RateLimiter = ratelimit.None
-
-	helm, err := helm.NewFactoryFromConfigWithNamespace(clientConfig, systemNamespace)
-	if err != nil {
-		klog.Fatalf("Error building sample controllers: %s", err.Error())
-	}
-	helmv := helm.Helm().V1()
-
-	batch, err := batch.NewFactoryFromConfigWithNamespace(clientConfig, systemNamespace)
-	if err != nil {
-		klog.Fatalf("Error building sample controllers: %s", err.Error())
-	}
 	batchv := batch.Batch().V1()
 
-	rbac, err := rbac.NewFactoryFromConfigWithNamespace(clientConfig, systemNamespace)
+	rbac, err := rbac.NewFactoryFromConfigWithOptions(client, &generic.FactoryOptions{
+		SharedControllerFactory: scf,
+		Namespace:               systemNamespace,
+	})
 	if err != nil {
-		klog.Fatalf("Error building sample controllers: %s", err.Error())
+		return nil, err
 	}
 	rbacv := rbac.Rbac().V1()
+
+	helm, err := helm.NewFactoryFromConfigWithOptions(client, &generic.FactoryOptions{
+		SharedControllerFactory: scf,
+		Namespace:               systemNamespace,
+	})
+	if err != nil {
+		return nil, err
+	}
+	helmv := helm.Helm().V1()
 
 	return &appContext{
 		Interface: helmv,
