@@ -105,7 +105,9 @@ func Register(ctx context.Context,
 
 	relatedresource.Watch(ctx, "resolve-helm-chart-from-config", c.resolveHelmChartFromConfig, helms, confs)
 
-	helmcontroller.RegisterHelmChartGeneratingHandler(ctx, helms, c.apply, "", "helm-chart-registration", c.OnChange, nil)
+	helmcontroller.RegisterHelmChartGeneratingHandler(ctx, helms, c.apply, "", "helm-chart-registration", c.OnChange, &generic.GeneratingHandlerOptions{
+		AllowClusterScoped: true,
+	})
 	helms.OnRemove(ctx, "on-helm-chart-remove", c.OnRemove)
 	relatedresource.Watch(ctx, "resolve-helm-chart-owned-resources",
 		relatedresource.OwnerResolver(true, helmv1.SchemeGroupVersion.String(), "HelmChart"),
@@ -184,7 +186,9 @@ func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.Helm
 	// if the job already exists and it is uninstalling, nothing will change since there's no need to patch
 	// if the job already exists but is tied to an install or upgrade, there will be a need to patch so
 	// the apply will execute the jobPatcher, which will delete the install/upgrade job and recreate a uninstall job
-	err = generic.ConfigureApplyForObject(c.apply, chart, nil).
+	err = generic.ConfigureApplyForObject(c.apply, chart, &generic.GeneratingHandlerOptions{
+		AllowClusterScoped: true,
+	}).
 		WithOwner(chart).
 		WithSetID("helm-chart-registration").
 		ApplyObjects(append(objs, job)...)
@@ -220,7 +224,9 @@ func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.Helm
 	c.recorder.Eventf(chart, core.EventTypeNormal, "RemoveJob", "Uninstalled HelmChart using Job %s/%s, removing resources", job.Namespace, job.Name)
 
 	// note: an empty apply removes all resources owned by this chart
-	err = generic.ConfigureApplyForObject(c.apply, chart, nil).
+	err = generic.ConfigureApplyForObject(c.apply, chart, &generic.GeneratingHandlerOptions{
+		AllowClusterScoped: true,
+	}).
 		WithOwner(chart).
 		WithSetID("helm-chart-registration").
 		ApplyObjects()
