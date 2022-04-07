@@ -151,6 +151,9 @@ func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runt
 }
 
 func (c *Controller) OnChange(chart *helmv1.HelmChart, chartStatus helmv1.HelmChartStatus) ([]runtime.Object, helmv1.HelmChartStatus, error) {
+	if chart == nil {
+		return nil, chartStatus, nil
+	}
 	if !c.shouldManage(chart) {
 		return nil, chartStatus, nil
 	}
@@ -173,6 +176,9 @@ func (c *Controller) OnChange(chart *helmv1.HelmChart, chartStatus helmv1.HelmCh
 }
 
 func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
+	if chart == nil {
+		return nil, nil
+	}
 	if !c.shouldManage(chart) {
 		return chart, nil
 	}
