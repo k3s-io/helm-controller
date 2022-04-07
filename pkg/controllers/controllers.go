@@ -25,7 +25,6 @@ import (
 	"github.com/rancher/wrangler/pkg/start"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	typedv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
@@ -43,8 +42,8 @@ type appContext struct {
 	RBAC  rbaccontrollers.Interface
 	Batch batchcontrollers.Interface
 
-	Apply         apply.Apply
-	EventRecorder record.EventRecorder
+	Apply            apply.Apply
+	EventBroadcaster record.EventBroadcaster
 
 	ClientConfig clientcmd.ClientConfig
 	starters     []start.Starter
@@ -60,11 +59,20 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		return err
 	}
 
+	appCtx.EventBroadcaster.StartLogging(logrus.Infof)
+	appCtx.EventBroadcaster.StartRecordingToSink(&typedv1.EventSinkImpl{
+		Interface: appCtx.K8s.CoreV1().Events(systemNamespace),
+	})
+	recorder := appCtx.EventBroadcaster.NewRecorder(schemes.All, corev1.EventSource{
+		Component: "helm-project-operator",
+		Host:      opts.NodeName,
+	})
+
 	chart.Register(ctx,
 		systemNamespace,
 		appCtx.K8s,
 		appCtx.Apply,
-		appCtx.EventRecorder,
+		recorder,
 		appCtx.HelmChart(),
 		appCtx.HelmChart().Cache(),
 		appCtx.HelmChartConfig(),
@@ -108,15 +116,6 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 	}), nil
 }
 
-func eventRecorder(k8s *kubernetes.Clientset, nodeName string) record.EventRecorder {
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(logrus.Infof)
-	eventBroadcaster.StartRecordingToSink(&typedv1.EventSinkImpl{Interface: k8s.CoreV1().Events(metav1.NamespaceSystem)})
-	eventSource := corev1.EventSource{Component: common.Name}
-	eventSource.Host = nodeName
-	return eventBroadcaster.NewRecorder(schemes.All, eventSource)
-}
-
 func newContext(cfg clientcmd.ClientConfig, systemNamespace string, opts common.Options) (*appContext, error) {
 	client, err := cfg.ClientConfig()
 	if err != nil {
@@ -134,8 +133,6 @@ func newContext(cfg clientcmd.ClientConfig, systemNamespace string, opts common.
 	if err != nil {
 		return nil, err
 	}
-
-	eventRecorder := eventRecorder(k8s, opts.NodeName)
 
 	scf, err := controllerFactory(client)
 	if err != nil {
@@ -186,8 +183,8 @@ func newContext(cfg clientcmd.ClientConfig, systemNamespace string, opts common.
 		Batch: batchv,
 		RBAC:  rbacv,
 
-		Apply:         apply,
-		EventRecorder: eventRecorder,
+		Apply:            apply,
+		EventBroadcaster: record.NewBroadcaster(),
 
 		ClientConfig: cfg,
 		starters: []start.Starter{
