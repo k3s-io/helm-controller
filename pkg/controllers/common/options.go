@@ -10,7 +10,7 @@ type Options struct {
 
 func (opts Options) Validate() error {
 	if opts.Threadiness <= 0 {
-		return fmt.Errorf("cannot start with thread count of %d, please pass a proper thread count.", opts.Threadiness)
+		return fmt.Errorf("cannot start with thread count of %d, please pass a proper thread count", opts.Threadiness)
 	}
 	return nil
 }
