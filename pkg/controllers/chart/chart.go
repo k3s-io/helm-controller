@@ -183,7 +183,7 @@ func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.Helm
 		return chart, nil
 	}
 
-	job, objs, err := c.getJobAndRelatedResources(chart)
+	expectedJob, objs, err := c.getJobAndRelatedResources(chart)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.Helm
 	}).
 		WithOwner(chart).
 		WithSetID("helm-chart-registration").
-		ApplyObjects(append(objs, job)...)
+		ApplyObjects(append(objs, expectedJob)...)
 	if err != nil {
 		return nil, err
 	}
@@ -208,11 +208,11 @@ func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.Helm
 	time.Sleep(3 * time.Second)
 
 	// once we have run the above logic, we can now check if the job is complete
-	job, err = c.jobCache.Get(chart.Namespace, job.Name)
+	job, err := c.jobCache.Get(chart.Namespace, expectedJob.Name)
 	if errors.IsNotFound(err) {
 		// the above apply should have created it, something is wrong.
 		// if you are here, there must be a bug in the code.
-		return chart, fmt.Errorf("could not perform uninstall: expected job %s/%s to exist after apply, but not found", chart.Namespace, job.Name)
+		return chart, fmt.Errorf("could not perform uninstall: expected job %s/%s to exist after apply, but not found", chart.Namespace, expectedJob.Name)
 	} else if err != nil {
 		return chart, err
 	}
