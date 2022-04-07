@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
@@ -195,6 +196,10 @@ func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.Helm
 	if err != nil {
 		return nil, err
 	}
+
+	// sleep for 3 seconds to give the job time to perform the helm install
+	// before emitting any errors
+	time.Sleep(3 * time.Second)
 
 	// once we have run the above logic, we can now check if the job is complete
 	job, err = c.jobCache.Get(chart.Namespace, job.Name)
