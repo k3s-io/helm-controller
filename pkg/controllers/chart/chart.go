@@ -22,6 +22,7 @@ import (
 	core "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -119,8 +120,8 @@ func Register(ctx context.Context,
 
 func (c *Controller) jobPatcher(namespace, name string, pt types.PatchType, data []byte) (runtime.Object, error) {
 	err := c.jobs.Delete(namespace, name, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
-	if err == nil {
-		return nil, fmt.Errorf("replace job")
+	if err == nil || apierrors.IsNotFound(err) {
+		return nil, fmt.Errorf("create or replace job")
 	}
 	return nil, err
 }
