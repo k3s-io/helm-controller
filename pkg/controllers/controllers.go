@@ -103,7 +103,6 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 
 func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, error) {
 	rateLimit := workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond, 60*time.Second)
-	workqueue.DefaultControllerRateLimiter()
 	clientFactory, err := client.NewSharedClientFactory(rest, nil)
 	if err != nil {
 		return nil, err
