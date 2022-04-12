@@ -462,6 +462,9 @@ func args(chart *helmv1.HelmChart) []string {
 	if spec.Version != "" {
 		args = append(args, "--version", spec.Version)
 	}
+	if spec.NoHooks {
+		args = append(args, "--no-hooks")
+	}
 
 	for _, k := range keys(spec.Set) {
 		val := spec.Set[k]
