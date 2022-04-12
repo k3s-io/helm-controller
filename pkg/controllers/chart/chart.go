@@ -19,7 +19,7 @@ import (
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	batch "k8s.io/api/batch/v1"
-	core "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -171,7 +171,7 @@ func (c *Controller) OnChange(chart *helmv1.HelmChart, chartStatus helmv1.HelmCh
 	chartStatus.JobName = job.Name
 
 	// emit an event to indicate that this Helm chart is being applied
-	c.recorder.Eventf(chart, core.EventTypeNormal, "ApplyJob", "Applying HelmChart using Job %s/%s", job.Namespace, job.Name)
+	c.recorder.Eventf(chart, corev1.EventTypeNormal, "ApplyJob", "Applying HelmChart using Job %s/%s", job.Namespace, job.Name)
 
 	return append(objs, job), chartStatus, nil
 }
@@ -233,7 +233,7 @@ func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.Helm
 	}
 
 	// uninstall job has successfully finished!
-	c.recorder.Eventf(chart, core.EventTypeNormal, "RemoveJob", "Uninstalled HelmChart using Job %s/%s, removing resources", job.Namespace, job.Name)
+	c.recorder.Eventf(chart, corev1.EventTypeNormal, "RemoveJob", "Uninstalled HelmChart using Job %s/%s, removing resources", job.Namespace, job.Name)
 
 	// note: an empty apply removes all resources owned by this chart
 	err = generic.ConfigureApplyForObject(c.apply, chart, &generic.GeneratingHandlerOptions{
@@ -305,7 +305,7 @@ func (c *Controller) getJobAndRelatedResources(chart *helmv1.HelmChart) (*batch.
 	}, nil
 }
 
-func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap) {
+func job(chart *helmv1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.ConfigMap) {
 	jobImage := strings.TrimSpace(chart.Spec.JobImage)
 	if jobImage == "" {
 		jobImage = DefaultJobImage
@@ -335,22 +335,22 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 		},
 		Spec: batch.JobSpec{
 			BackoffLimit: pointer.Int32Ptr(1000),
-			Template: core.PodTemplateSpec{
+			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{},
 					Labels: map[string]string{
 						Label: chart.Name,
 					},
 				},
-				Spec: core.PodSpec{
-					RestartPolicy: core.RestartPolicyOnFailure,
-					Containers: []core.Container{
+				Spec: corev1.PodSpec{
+					RestartPolicy: corev1.RestartPolicyOnFailure,
+					Containers: []corev1.Container{
 						{
 							Name:            "helm",
 							Image:           jobImage,
-							ImagePullPolicy: core.PullIfNotPresent,
+							ImagePullPolicy: corev1.PullIfNotPresent,
 							Args:            args(chart),
-							Env: []core.EnvVar{
+							Env: []corev1.EnvVar{
 								{
 									Name:  "NAME",
 									Value: chart.Name,
@@ -393,45 +393,45 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 	}
 
 	if chart.Spec.Timeout != nil {
-		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, core.EnvVar{
+		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
 			Name:  "TIMEOUT",
 			Value: chart.Spec.Timeout.String(),
 		})
 	}
 
 	job.Spec.Template.Spec.NodeSelector = make(map[string]string)
-	job.Spec.Template.Spec.NodeSelector[core.LabelOSStable] = "linux"
+	job.Spec.Template.Spec.NodeSelector[corev1.LabelOSStable] = "linux"
 
 	if chart.Spec.Bootstrap {
 		job.Spec.Template.Spec.NodeSelector[LabelNodeRolePrefix+LabelControlPlaneSuffix] = "true"
 		job.Spec.Template.Spec.HostNetwork = true
-		job.Spec.Template.Spec.Tolerations = []core.Toleration{
+		job.Spec.Template.Spec.Tolerations = []corev1.Toleration{
 			{
-				Key:    core.TaintNodeNotReady,
-				Effect: core.TaintEffectNoSchedule,
+				Key:    corev1.TaintNodeNotReady,
+				Effect: corev1.TaintEffectNoSchedule,
 			},
 			{
 				Key:      TaintExternalCloudProvider,
-				Operator: core.TolerationOpEqual,
+				Operator: corev1.TolerationOpEqual,
 				Value:    "true",
-				Effect:   core.TaintEffectNoSchedule,
+				Effect:   corev1.TaintEffectNoSchedule,
 			},
 			{
 				Key:      "CriticalAddonsOnly",
-				Operator: core.TolerationOpExists,
+				Operator: corev1.TolerationOpExists,
 			},
 			{
 				Key:      LabelNodeRolePrefix + LabelEtcdSuffix,
-				Operator: core.TolerationOpExists,
-				Effect:   core.TaintEffectNoExecute,
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoExecute,
 			},
 			{
 				Key:      LabelNodeRolePrefix + LabelControlPlaneSuffix,
-				Operator: core.TolerationOpExists,
-				Effect:   core.TaintEffectNoSchedule,
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
 			},
 		}
-		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, []core.EnvVar{
+		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, []corev1.EnvVar{
 			{
 				Name:  "KUBERNETES_SERVICE_HOST",
 				Value: "127.0.0.1"},
@@ -451,8 +451,8 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *core.ConfigMap, *core.ConfigMap)
 	return job, valueConfigMap, contentConfigMap
 }
 
-func valuesConfigMap(chart *helmv1.HelmChart) *core.ConfigMap {
-	var configMap = &core.ConfigMap{
+func valuesConfigMap(chart *helmv1.HelmChart) *corev1.ConfigMap {
+	var configMap = &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
@@ -474,7 +474,7 @@ func valuesConfigMap(chart *helmv1.HelmChart) *core.ConfigMap {
 	return configMap
 }
 
-func valuesConfigMapAddConfig(configMap *core.ConfigMap, config *helmv1.HelmChartConfig) {
+func valuesConfigMapAddConfig(configMap *corev1.ConfigMap, config *helmv1.HelmChartConfig) {
 	if config.Spec.ValuesContent != "" {
 		configMap.Data["values-10_HelmChartConfig.yaml"] = config.Spec.ValuesContent
 	}
@@ -504,8 +504,8 @@ func roleBinding(chart *helmv1.HelmChart) *rbac.ClusterRoleBinding {
 	}
 }
 
-func serviceAccount(chart *helmv1.HelmChart) *core.ServiceAccount {
-	return &core.ServiceAccount{
+func serviceAccount(chart *helmv1.HelmChart) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ServiceAccount",
@@ -603,7 +603,7 @@ func setProxyEnv(job *batch.Job) {
 		if len(proxyEnvValue) == 0 {
 			continue
 		}
-		envar := core.EnvVar{
+		envar := corev1.EnvVar{
 			Name:  proxyEnv,
 			Value: proxyEnvValue,
 		}
@@ -613,8 +613,8 @@ func setProxyEnv(job *batch.Job) {
 	}
 }
 
-func contentConfigMap(chart *helmv1.HelmChart) *core.ConfigMap {
-	configMap := &core.ConfigMap{
+func contentConfigMap(chart *helmv1.HelmChart) *corev1.ConfigMap {
+	configMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ConfigMap",
@@ -634,21 +634,21 @@ func contentConfigMap(chart *helmv1.HelmChart) *core.ConfigMap {
 	return configMap
 }
 
-func setValuesConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMap {
+func setValuesConfigMap(job *batch.Job, chart *helmv1.HelmChart) *corev1.ConfigMap {
 	configMap := valuesConfigMap(chart)
 
-	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, core.Volume{
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
 		Name: "values",
-		VolumeSource: core.VolumeSource{
-			ConfigMap: &core.ConfigMapVolumeSource{
-				LocalObjectReference: core.LocalObjectReference{
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
 					Name: configMap.Name,
 				},
 			},
 		},
 	})
 
-	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, core.VolumeMount{
+	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 		MountPath: "/config",
 		Name:      "values",
 	})
@@ -656,24 +656,24 @@ func setValuesConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMap
 	return configMap
 }
 
-func setContentConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMap {
+func setContentConfigMap(job *batch.Job, chart *helmv1.HelmChart) *corev1.ConfigMap {
 	configMap := contentConfigMap(chart)
 	if configMap == nil {
 		return nil
 	}
 
-	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, core.Volume{
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
 		Name: "content",
-		VolumeSource: core.VolumeSource{
-			ConfigMap: &core.ConfigMapVolumeSource{
-				LocalObjectReference: core.LocalObjectReference{
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
 					Name: configMap.Name,
 				},
 			},
 		},
 	})
 
-	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, core.VolumeMount{
+	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 		MountPath: "/chart",
 		Name:      "content",
 	})
@@ -682,13 +682,13 @@ func setContentConfigMap(job *batch.Job, chart *helmv1.HelmChart) *core.ConfigMa
 }
 
 func setFailurePolicy(job *batch.Job, failurePolicy string) {
-	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, core.EnvVar{
+	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
 		Name:  "FAILURE_POLICY",
 		Value: failurePolicy,
 	})
 }
 
-func hashConfigMaps(job *batch.Job, maps ...*core.ConfigMap) {
+func hashConfigMaps(job *batch.Job, maps ...*corev1.ConfigMap) {
 	hash := sha256.New()
 
 	for _, configMap := range maps {
