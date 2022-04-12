@@ -64,7 +64,7 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		Interface: appCtx.K8s.CoreV1().Events(systemNamespace),
 	})
 	recorder := appCtx.EventBroadcaster.NewRecorder(schemes.All, corev1.EventSource{
-		Component: "helm-project-operator",
+		Component: "helm-controller",
 		Host:      opts.NodeName,
 	})
 
