@@ -6,7 +6,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	helmapiv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/test/framework"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,7 +20,7 @@ var _ = Describe("Helm Tests", func() {
 	Context("When a helm V3 chart is created", func() {
 		var (
 			err     error
-			chart   *helmapiv1.HelmChart
+			chart   *v1.HelmChart
 			secrets []corev1.Secret
 		)
 		BeforeEach(func() {
@@ -78,7 +78,7 @@ var _ = Describe("Helm Tests", func() {
 	Context("When a helm V3 chart version is updated", func() {
 		var (
 			err     error
-			chart   *helmapiv1.HelmChart
+			chart   *v1.HelmChart
 			secrets []corev1.Secret
 			pods    []corev1.Pod
 		)
@@ -124,7 +124,7 @@ var _ = Describe("Helm Tests", func() {
 	Context("When a helm V3 chart version is updated with values", func() {
 		var (
 			err     error
-			chart   *helmapiv1.HelmChart
+			chart   *v1.HelmChart
 			secrets []corev1.Secret
 			pods    []corev1.Pod
 		)
@@ -204,7 +204,7 @@ var _ = Describe("Helm Tests", func() {
 	Context("When a helm V2 chart is created", func() {
 		var (
 			err     error
-			chart   *helmapiv1.HelmChart
+			chart   *v1.HelmChart
 			secrets []corev1.Secret
 		)
 		BeforeEach(func() {
@@ -263,7 +263,7 @@ var _ = Describe("Helm Tests", func() {
 	Context("When a helm V2 chart version is updated", func() {
 		var (
 			err     error
-			chart   *helmapiv1.HelmChart
+			chart   *v1.HelmChart
 			secrets []corev1.Secret
 			pods    []corev1.Pod
 		)

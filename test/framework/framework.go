@@ -7,7 +7,7 @@ import (
 
 	"k8s.io/client-go/util/retry"
 
-	helmapiv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
 	"github.com/onsi/ginkgo"
@@ -108,35 +108,35 @@ func getCRDs() ([]crd.CRD, error) {
 }
 
 func ChartCRD() (*crd.CRD, error) {
-	prototype := helmapiv1.NewHelmChart("", "", helmapiv1.HelmChart{})
+	prototype := v1.NewHelmChart("", "", v1.HelmChart{})
 	schema, err := openapi.ToOpenAPIFromStruct(*prototype)
 	if err != nil {
 		return nil, err
 	}
 	return &crd.CRD{
 		GVK:        prototype.GroupVersionKind(),
-		PluralName: helmapiv1.HelmChartResourceName,
+		PluralName: v1.HelmChartResourceName,
 		Status:     true,
 		Schema:     schema,
 	}, nil
 }
 
 func ConfigCRD() (*crd.CRD, error) {
-	prototype := helmapiv1.NewHelmChartConfig("", "", helmapiv1.HelmChartConfig{})
+	prototype := v1.NewHelmChartConfig("", "", v1.HelmChartConfig{})
 	schema, err := openapi.ToOpenAPIFromStruct(*prototype)
 	if err != nil {
 		return nil, err
 	}
 	return &crd.CRD{
 		GVK:        prototype.GroupVersionKind(),
-		PluralName: helmapiv1.HelmChartConfigResourceName,
+		PluralName: v1.HelmChartConfigResourceName,
 		Status:     true,
 		Schema:     schema,
 	}, nil
 }
 
-func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set map[string]intstr.IntOrString) *helmapiv1.HelmChart {
-	return &helmapiv1.HelmChart{
+func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set map[string]intstr.IntOrString) *v1.HelmChart {
+	return &v1.HelmChart{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: f.Namespace,
@@ -144,7 +144,7 @@ func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set m
 				"helm-test": "true",
 			},
 		},
-		Spec: helmapiv1.HelmChartSpec{
+		Spec: v1.HelmChartSpec{
 			Chart:       chart,
 			Version:     version,
 			Repo:        "",
@@ -154,7 +154,7 @@ func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set m
 	}
 }
 
-func (f *Framework) WaitForRelease(chart *helmapiv1.HelmChart, labelSelector labels.Selector, timeout time.Duration, count int) (secrets []corev1.Secret, err error) {
+func (f *Framework) WaitForRelease(chart *v1.HelmChart, labelSelector labels.Selector, timeout time.Duration, count int) (secrets []corev1.Secret, err error) {
 
 	return secrets, wait.Poll(5*time.Second, timeout, func() (bool, error) {
 		list, err := f.ClientSet.CoreV1().Secrets(chart.Namespace).List(context.TODO(), metav1.ListOptions{
@@ -168,11 +168,11 @@ func (f *Framework) WaitForRelease(chart *helmapiv1.HelmChart, labelSelector lab
 	})
 }
 
-func (f *Framework) CreateHelmChart(chart *helmapiv1.HelmChart, namespace string) (*helmapiv1.HelmChart, error) {
+func (f *Framework) CreateHelmChart(chart *v1.HelmChart, namespace string) (*v1.HelmChart, error) {
 	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Create(context.TODO(), chart, metav1.CreateOptions{})
 }
 
-func (f *Framework) UpdateHelmChart(chart *helmapiv1.HelmChart, namespace string) (updated *helmapiv1.HelmChart, err error) {
+func (f *Framework) UpdateHelmChart(chart *v1.HelmChart, namespace string) (updated *v1.HelmChart, err error) {
 	hcs := f.HelmClientSet.HelmV1()
 	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		updated, err = hcs.HelmCharts(namespace).Get(context.TODO(), chart.Name, metav1.GetOptions{})
@@ -192,18 +192,18 @@ func (f *Framework) DeleteHelmChart(name, namespace string) error {
 	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 }
 
-func (f *Framework) GetHelmChart(name, namespace string) (*helmapiv1.HelmChart, error) {
+func (f *Framework) GetHelmChart(name, namespace string) (*v1.HelmChart, error) {
 	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (f *Framework) ListHelmCharts(labelSelector, namespace string) (*helmapiv1.HelmChartList, error) {
+func (f *Framework) ListHelmCharts(labelSelector, namespace string) (*v1.HelmChartList, error) {
 	return f.HelmClientSet.HelmV1().HelmCharts(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
 }
 
 // WaitForChartApp will check the for pods created by the chart
-func (f *Framework) WaitForChartApp(chart *helmapiv1.HelmChart, appName string, timeout time.Duration, count int) (pods []corev1.Pod, err error) {
+func (f *Framework) WaitForChartApp(chart *v1.HelmChart, appName string, timeout time.Duration, count int) (pods []corev1.Pod, err error) {
 	labelSelector := labels.SelectorFromSet(labels.Set{
 		"app":     appName,
 		"release": chart.Name,

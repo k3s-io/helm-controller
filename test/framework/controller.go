@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	helm "github.com/k3s-io/helm-controller/pkg/controllers/chart"
+	"github.com/k3s-io/helm-controller/pkg/controllers/chart"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -168,7 +168,7 @@ func (f *Framework) teardownController(ctx context.Context) error {
 		return err
 	}
 
-	err = f.crdFactory.CRDClient.ApiextensionsV1().CustomResourceDefinitions().Delete(ctx, helm.CRDName, metav1.DeleteOptions{})
+	err = f.crdFactory.CRDClient.ApiextensionsV1().CustomResourceDefinitions().Delete(ctx, chart.CRDName, metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
 	}

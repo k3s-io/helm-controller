@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	"github.com/rancher/wrangler/pkg/apply"
 	batchcontroller "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
@@ -105,7 +105,7 @@ func Register(ctx context.Context,
 	})
 	helms.OnRemove(ctx, "on-helm-chart-remove", c.OnRemove)
 	relatedresource.Watch(ctx, "resolve-helm-chart-owned-resources",
-		relatedresource.OwnerResolver(true, helmv1.SchemeGroupVersion.String(), "HelmChart"),
+		relatedresource.OwnerResolver(true, v1.SchemeGroupVersion.String(), "HelmChart"),
 		helms,
 		jobs, crbs, sas, cm,
 	)
@@ -124,7 +124,7 @@ func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runt
 		// do nothing if it's not in the namespace this controller was registered with
 		return nil, nil
 	}
-	if conf, ok := obj.(*helmv1.HelmChartConfig); ok {
+	if conf, ok := obj.(*v1.HelmChartConfig); ok {
 		chart, err := c.helmCache.Get(conf.Namespace, conf.Name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
@@ -144,7 +144,7 @@ func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runt
 	return nil, nil
 }
 
-func (c *Controller) OnChange(chart *helmv1.HelmChart, chartStatus helmv1.HelmChartStatus) ([]runtime.Object, helmv1.HelmChartStatus, error) {
+func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatus) ([]runtime.Object, v1.HelmChartStatus, error) {
 	if chart == nil {
 		return nil, chartStatus, nil
 	}
@@ -169,7 +169,7 @@ func (c *Controller) OnChange(chart *helmv1.HelmChart, chartStatus helmv1.HelmCh
 	return append(objs, job), chartStatus, nil
 }
 
-func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.HelmChart, error) {
+func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, error) {
 	if chart == nil {
 		return nil, nil
 	}
@@ -242,7 +242,7 @@ func (c *Controller) OnRemove(key string, chart *helmv1.HelmChart) (*helmv1.Helm
 	return chart, nil
 }
 
-func (c *Controller) shouldManage(chart *helmv1.HelmChart) bool {
+func (c *Controller) shouldManage(chart *v1.HelmChart) bool {
 	if chart == nil {
 		return false
 	}
@@ -259,7 +259,7 @@ func (c *Controller) shouldManage(chart *helmv1.HelmChart) bool {
 	return true
 }
 
-func (c *Controller) getJobAndRelatedResources(chart *helmv1.HelmChart) (*batch.Job, []runtime.Object, error) {
+func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job, []runtime.Object, error) {
 	// set a default failure policy
 	failurePolicy := DefaultFailurePolicy
 	if chart.Spec.FailurePolicy != "" {
@@ -298,7 +298,7 @@ func (c *Controller) getJobAndRelatedResources(chart *helmv1.HelmChart) (*batch.
 	}, nil
 }
 
-func job(chart *helmv1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.ConfigMap) {
+func job(chart *v1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.ConfigMap) {
 	jobImage := strings.TrimSpace(chart.Spec.JobImage)
 	if jobImage == "" {
 		jobImage = DefaultJobImage
@@ -444,7 +444,7 @@ func job(chart *helmv1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.Config
 	return job, valueConfigMap, contentConfigMap
 }
 
-func valuesConfigMap(chart *helmv1.HelmChart) *corev1.ConfigMap {
+func valuesConfigMap(chart *v1.HelmChart) *corev1.ConfigMap {
 	var configMap = &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -467,13 +467,13 @@ func valuesConfigMap(chart *helmv1.HelmChart) *corev1.ConfigMap {
 	return configMap
 }
 
-func valuesConfigMapAddConfig(configMap *corev1.ConfigMap, config *helmv1.HelmChartConfig) {
+func valuesConfigMapAddConfig(configMap *corev1.ConfigMap, config *v1.HelmChartConfig) {
 	if config.Spec.ValuesContent != "" {
 		configMap.Data["values-10_HelmChartConfig.yaml"] = config.Spec.ValuesContent
 	}
 }
 
-func roleBinding(chart *helmv1.HelmChart) *rbac.ClusterRoleBinding {
+func roleBinding(chart *v1.HelmChart) *rbac.ClusterRoleBinding {
 	return &rbac.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "rbac.authorization.k8s.io/v1",
@@ -497,7 +497,7 @@ func roleBinding(chart *helmv1.HelmChart) *rbac.ClusterRoleBinding {
 	}
 }
 
-func serviceAccount(chart *helmv1.HelmChart) *corev1.ServiceAccount {
+func serviceAccount(chart *v1.HelmChart) *corev1.ServiceAccount {
 	return &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -511,7 +511,7 @@ func serviceAccount(chart *helmv1.HelmChart) *corev1.ServiceAccount {
 	}
 }
 
-func args(chart *helmv1.HelmChart) []string {
+func args(chart *v1.HelmChart) []string {
 	if chart.DeletionTimestamp != nil {
 		return []string{
 			"delete",
@@ -606,7 +606,7 @@ func setProxyEnv(job *batch.Job) {
 	}
 }
 
-func contentConfigMap(chart *helmv1.HelmChart) *corev1.ConfigMap {
+func contentConfigMap(chart *v1.HelmChart) *corev1.ConfigMap {
 	configMap := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -627,7 +627,7 @@ func contentConfigMap(chart *helmv1.HelmChart) *corev1.ConfigMap {
 	return configMap
 }
 
-func setValuesConfigMap(job *batch.Job, chart *helmv1.HelmChart) *corev1.ConfigMap {
+func setValuesConfigMap(job *batch.Job, chart *v1.HelmChart) *corev1.ConfigMap {
 	configMap := valuesConfigMap(chart)
 
 	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
@@ -649,7 +649,7 @@ func setValuesConfigMap(job *batch.Job, chart *helmv1.HelmChart) *corev1.ConfigM
 	return configMap
 }
 
-func setContentConfigMap(job *batch.Job, chart *helmv1.HelmChart) *corev1.ConfigMap {
+func setContentConfigMap(job *batch.Job, chart *v1.HelmChart) *corev1.ConfigMap {
 	configMap := contentConfigMap(chart)
 	if configMap == nil {
 		return nil
