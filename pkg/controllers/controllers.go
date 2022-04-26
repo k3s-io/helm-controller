@@ -83,12 +83,12 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		appCtx.Core.ServiceAccount(),
 		appCtx.Core.ConfigMap())
 
-	klog.Infof("Starting helm controller with %d threads.", opts.Threadiness)
+	klog.Infof("Starting helm controller with %d threads", opts.Threadiness)
 
 	if len(systemNamespace) == 0 {
-		klog.Info("Starting helm controller with no namespace.")
+		klog.Info("Starting helm controller with no namespace")
 	} else {
-		klog.Infof("Starting helm controller in namespace: %s.", systemNamespace)
+		klog.Infof("Starting helm controller in namespace %s", systemNamespace)
 	}
 
 	leader.RunOrDie(ctx, systemNamespace, "helm-controller-lock", appCtx.K8s, func(ctx context.Context) {

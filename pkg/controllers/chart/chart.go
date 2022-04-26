@@ -29,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 )
 
@@ -82,12 +81,6 @@ func Register(ctx context.Context,
 	crbs rbaccontroller.ClusterRoleBindingController,
 	sas corecontroller.ServiceAccountController,
 	cm corecontroller.ConfigMapController) {
-
-	if len(systemNamespace) == 0 {
-		klog.Info("Starting helm controller on all namespaces")
-	} else {
-		klog.Infof("Starting helm controller in namespace: %s.", systemNamespace)
-	}
 
 	c := &Controller{
 		systemNamespace: systemNamespace,
