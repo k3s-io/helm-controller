@@ -7,7 +7,7 @@ import (
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/stretchr/testify/assert"
-	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -47,7 +47,7 @@ func TestInstallJob(t *testing.T) {
 func TestDeleteJob(t *testing.T) {
 	assert := assert.New(t)
 	chart := NewChart()
-	deleteTime := v12.NewTime(time.Time{})
+	deleteTime := metav1.NewTime(time.Time{})
 	chart.DeletionTimestamp = &deleteTime
 	job, _, _ := job(chart)
 	assert.Equal("helm-delete-traefik", job.Name)
@@ -68,7 +68,7 @@ func TestInstallArgs(t *testing.T) {
 func TestDeleteArgs(t *testing.T) {
 	assert := assert.New(t)
 	chart := NewChart()
-	deleteTime := v12.NewTime(time.Time{})
+	deleteTime := metav1.NewTime(time.Time{})
 	chart.DeletionTimestamp = &deleteTime
 	stringArgs := strings.Join(args(chart), " ")
 	assert.Equal("delete", stringArgs)

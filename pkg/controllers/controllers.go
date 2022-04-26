@@ -7,17 +7,17 @@ import (
 	"github.com/k3s-io/helm-controller/pkg/controllers/chart"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	"github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
-	v1 "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
+	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/cache"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/generated/controllers/batch"
-	batchcontrollers "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
+	batchcontroller "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	"github.com/rancher/wrangler/pkg/generated/controllers/core"
-	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
+	corecontroller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	"github.com/rancher/wrangler/pkg/generated/controllers/rbac"
-	rbaccontrollers "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
+	rbaccontroller "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/pkg/generic"
 	"github.com/rancher/wrangler/pkg/leader"
 	"github.com/rancher/wrangler/pkg/ratelimit"
@@ -35,12 +35,12 @@ import (
 )
 
 type appContext struct {
-	v1.Interface
+	helmcontroller.Interface
 
 	K8s   kubernetes.Interface
-	Core  corecontrollers.Interface
-	RBAC  rbaccontrollers.Interface
-	Batch batchcontrollers.Interface
+	Core  corecontroller.Interface
+	RBAC  rbaccontroller.Interface
+	Batch batchcontroller.Interface
 
 	Apply            apply.Apply
 	EventBroadcaster record.EventBroadcaster
