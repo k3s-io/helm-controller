@@ -53,7 +53,7 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientConfig, opts common.Options) error {
+func Register(ctx context.Context, systemNamespace, controllerName string, cfg clientcmd.ClientConfig, opts common.Options) error {
 	appCtx, err := newContext(cfg, systemNamespace, opts)
 	if err != nil {
 		return err
@@ -68,8 +68,13 @@ func Register(ctx context.Context, systemNamespace string, cfg clientcmd.ClientC
 		Host:      opts.NodeName,
 	})
 
+	if len(controllerName) == 0 {
+		controllerName = "helm-controller"
+	}
+
 	chart.Register(ctx,
 		systemNamespace,
+		controllerName,
 		appCtx.K8s,
 		appCtx.Apply,
 		recorder,

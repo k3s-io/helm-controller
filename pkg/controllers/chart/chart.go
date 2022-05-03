@@ -36,6 +36,7 @@ const (
 	Label         = "helmcharts.helm.cattle.io/chart"
 	Annotation    = "helmcharts.helm.cattle.io/configHash"
 	Unmanaged     = "helmcharts.helm.cattle.io/unmanaged"
+	ManagedBy     = "helmcharts.cattle.io/managed-by"
 	CRDName       = "helmcharts.helm.cattle.io"
 	ConfigCRDName = "helmchartconfigs.helm.cattle.io"
 
@@ -57,6 +58,7 @@ var (
 
 type Controller struct {
 	systemNamespace string
+	managedBy       string
 	helms           helmcontroller.HelmChartController
 	helmCache       helmcontroller.HelmChartCache
 	confs           helmcontroller.HelmChartConfigController
@@ -68,7 +70,7 @@ type Controller struct {
 }
 
 func Register(ctx context.Context,
-	systemNamespace string,
+	systemNamespace, managedBy string,
 	k8s kubernetes.Interface,
 	apply apply.Apply,
 	recorder record.EventRecorder,
@@ -84,6 +86,7 @@ func Register(ctx context.Context,
 
 	c := &Controller{
 		systemNamespace: systemNamespace,
+		managedBy:       managedBy,
 		helms:           helms,
 		helmCache:       helmCache,
 		confs:           confs,
@@ -145,10 +148,9 @@ func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runt
 }
 
 func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatus) ([]runtime.Object, v1.HelmChartStatus, error) {
-	if chart == nil {
-		return nil, chartStatus, nil
-	}
-	if !c.shouldManage(chart) {
+	if shouldManage, err := c.shouldManage(chart); err != nil {
+		return nil, chartStatus, err
+	} else if !shouldManage {
 		return nil, chartStatus, nil
 	}
 	if chart.DeletionTimestamp != nil {
@@ -170,10 +172,9 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 }
 
 func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, error) {
-	if chart == nil {
-		return nil, nil
-	}
-	if !c.shouldManage(chart) {
+	if shouldManage, err := c.shouldManage(chart); err != nil {
+		return chart, err
+	} else if !shouldManage {
 		return chart, nil
 	}
 
@@ -242,21 +243,39 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 	return chart, nil
 }
 
-func (c *Controller) shouldManage(chart *v1.HelmChart) bool {
+func (c *Controller) shouldManage(chart *v1.HelmChart) (bool, error) {
 	if chart == nil {
-		return false
+		return false, nil
 	}
 	if len(c.systemNamespace) > 0 && chart.Namespace != c.systemNamespace {
 		// do nothing if it's not in the namespace this controller was registered with
-		return false
+		return false, nil
 	}
 	if chart.Spec.Chart == "" && chart.Spec.ChartContent == "" {
-		return false
+		return false, nil
 	}
-	if _, ok := chart.Annotations[Unmanaged]; ok {
-		return false
+	if chart.Annotations != nil {
+		if _, ok := chart.Annotations[Unmanaged]; ok {
+			return false, nil
+		}
+		managedBy, ok := chart.Annotations[ManagedBy]
+		if ok {
+			// if the label exists, only handle this if the managedBy label matches that of this controller
+			return managedBy == c.managedBy, nil
+		}
 	}
-	return true
+	// The managedBy label does not exist, so we trigger claiming the HelmChart
+	// We then return false since this update will automatically retrigger an OnChange operation
+	chartCopy := chart.DeepCopy()
+	if chartCopy.Annotations == nil {
+		chartCopy.SetAnnotations(map[string]string{
+			ManagedBy: c.managedBy,
+		})
+	} else {
+		chartCopy.Annotations[ManagedBy] = c.managedBy
+	}
+	_, err := c.helms.Update(chartCopy)
+	return false, err
 }
 
 func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job, []runtime.Object, error) {
