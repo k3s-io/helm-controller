@@ -24,11 +24,12 @@ var (
 )
 
 type HelmController struct {
-	Kubeconfig string `short:"k" usage:"Kubernetes config files, e.g. $HOME/.kube/config" env:"KUBECONFIG"`
-	MasterURL  string `short:"m" usage:"Kubernetes cluster master URL" env:"MASTERURL"`
-	Namespace  string `short:"n" usage:"Namespace to watch, empty means it will watch CRDs in all namespaces." env:"NAMESPACE"`
-	Threads    int    `short:"t" usage:"Threadiness level to set, defaults to 2." default:"2" env:"THREADS"`
-	NodeName   string `usage:"Name of the node this controller is running on" env:"NODE_NAME"`
+	Kubeconfig     string `short:"k" usage:"Kubernetes config files, e.g. $HOME/.kube/config" env:"KUBECONFIG"`
+	MasterURL      string `short:"m" usage:"Kubernetes cluster master URL" env:"MASTERURL"`
+	Namespace      string `short:"n" usage:"Namespace to watch, empty means it will watch CRDs in all namespaces." env:"NAMESPACE"`
+	Threads        int    `short:"t" usage:"Threadiness level to set, defaults to 2." default:"2" env:"THREADS"`
+	ControllerName string `usage:"Unique name to identify this controller that is added to all HelmCharts tracked by this controller" default:"helm-controller" env:"CONTROLLER_NAME"`
+	NodeName       string `usage:"Name of the node this controller is running on" env:"NODE_NAME"`
 }
 
 func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
@@ -59,7 +60,7 @@ func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := controllers.Register(ctx, a.Namespace, cfg, opts); err != nil {
+	if err := controllers.Register(ctx, a.Namespace, a.ControllerName, cfg, opts); err != nil {
 		return err
 	}
 
