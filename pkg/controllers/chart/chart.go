@@ -103,10 +103,21 @@ func Register(ctx context.Context,
 
 	relatedresource.Watch(ctx, "resolve-helm-chart-from-config", c.resolveHelmChartFromConfig, helms, confs)
 
-	helmcontroller.RegisterHelmChartGeneratingHandler(ctx, helms, c.apply, "", "helm-chart-registration", c.OnChange, &generic.GeneratingHandlerOptions{
+	// Why do we need to add the managedBy string to the generatingHandlerName?
+	//
+	// By default, generating handlers use the name of the controller as the set ID for the wrangler.apply operation
+	// Therefore, if multiple iterations of the helm-controller are using the same set ID, they will try to overwrite each other's
+	// resources since each controller will detect the other's set as resources that need to be cleaned up to apply the new set
+	//
+	// To resolve this, we simply prefix the provided managedBy string to the generatingHandler controller's name only to ensure that the
+	// set ID specified will only target this particular controller
+	generatingHandlerName := fmt.Sprintf("%s-chart-registration", managedBy)
+	helmcontroller.RegisterHelmChartGeneratingHandler(ctx, helms, c.apply, "", generatingHandlerName, c.OnChange, &generic.GeneratingHandlerOptions{
 		AllowClusterScoped: true,
 	})
+
 	helms.OnRemove(ctx, "on-helm-chart-remove", c.OnRemove)
+
 	relatedresource.Watch(ctx, "resolve-helm-chart-owned-resources",
 		relatedresource.OwnerResolver(true, v1.SchemeGroupVersion.String(), "HelmChart"),
 		helms,
