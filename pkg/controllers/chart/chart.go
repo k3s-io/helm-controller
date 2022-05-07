@@ -12,6 +12,7 @@ import (
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
+	"github.com/k3s-io/helm-controller/pkg/remove"
 	"github.com/rancher/wrangler/pkg/apply"
 	batchcontroller "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
 	corecontroller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -116,7 +117,19 @@ func Register(ctx context.Context,
 		AllowClusterScoped: true,
 	})
 
-	helms.OnRemove(ctx, "on-helm-chart-remove", c.OnRemove)
+	remove.RegisterScopedOnRemoveHandler(ctx, helms, "on-helm-chart-remove",
+		func(key string, obj runtime.Object) (bool, error) {
+			if obj == nil {
+				return false, nil
+			}
+			helmChart, ok := obj.(*v1.HelmChart)
+			if !ok {
+				return false, nil
+			}
+			return c.shouldManage(helmChart)
+		},
+		helmcontroller.FromHelmChartHandlerToHandler(c.OnRemove),
+	)
 
 	relatedresource.Watch(ctx, "resolve-helm-chart-owned-resources",
 		relatedresource.OwnerResolver(true, v1.SchemeGroupVersion.String(), "HelmChart"),
@@ -183,10 +196,8 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 }
 
 func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, error) {
-	if shouldManage, err := c.shouldManage(chart); err != nil {
-		return chart, err
-	} else if !shouldManage {
-		return chart, nil
+	if chart == nil {
+		return nil, nil
 	}
 
 	expectedJob, objs, err := c.getJobAndRelatedResources(chart)
