@@ -18,6 +18,27 @@ fi
 mkdir -p dist/artifacts
 cp bin/helm-controller dist/artifacts/helm-controller${SUFFIX}
 
+reset-kustomization() {
+  git checkout kustomization.yaml
+}
+
+if [ "$ARCH" = "amd64" ]; then
+  trap reset-kustomization EXIT
+  go run hack/crdgen.go > /tmp/crd.yaml
+  kustomize edit set image "rancher/helm-controller=${REPO}/helm-controller:${VERSION}"
+  kustomize build --reorder=none --output /tmp/
+  echo -n > ./dist/artifacts/deploy-cluster-scoped.yaml
+  for FILE in /tmp/crd.yaml /tmp/default_apps_v1_deployment_helm-controller.yaml; do
+    cat $FILE >> ./dist/artifacts/deploy-cluster-scoped.yaml
+    echo "---" >> ./dist/artifacts/deploy-cluster-scoped.yaml
+  done
+  echo -n > ./dist/artifacts/deploy-namespaced.yaml
+  for FILE in /tmp/crd.yaml /tmp/v1_namespace_helm-controller.yaml /tmp/helm-controller_apps_v1_deployment_helm-controller.yaml; do
+    cat $FILE >> ./dist/artifacts/deploy-namespaced.yaml
+    echo "---" >> ./dist/artifacts/deploy-namespaced.yaml
+  done
+fi
+
 IMAGE=${REPO}/helm-controller:${TAG}
 DOCKERFILE=package/Dockerfile
 if [ -e ${DOCKERFILE}.${ARCH} ]; then
