@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	helmv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
@@ -224,7 +225,7 @@ func (c *Controller) OnConfChange(key string, conf *helmv1.HelmChartConfig) (*he
 			return conf, err
 		}
 	} else if chart != nil {
-		c.helmController.Enqueue(conf.Namespace, conf.Name)
+		c.helmController.EnqueueAfter(conf.Namespace, conf.Name, time.Second)
 	}
 	return conf, nil
 }
