@@ -10,6 +10,7 @@ import (
 	"github.com/k3s-io/helm-controller/pkg/crd"
 	"github.com/k3s-io/helm-controller/pkg/version"
 	command "github.com/rancher/wrangler-cli"
+	wcrd "github.com/rancher/wrangler/pkg/crd"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/apiextensions.k8s.io"
 	_ "github.com/rancher/wrangler/pkg/generated/controllers/networking.k8s.io"
 	"github.com/rancher/wrangler/pkg/kubeconfig"
@@ -47,7 +48,7 @@ func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
 	clientConfig.RateLimiter = ratelimit.None
 
 	ctx := cmd.Context()
-	if err := crd.Create(ctx, clientConfig); err != nil {
+	if err := wcrd.Create(ctx, clientConfig, crd.List()); err != nil {
 		return err
 	}
 
