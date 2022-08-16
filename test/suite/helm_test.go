@@ -9,6 +9,7 @@ import (
 	helmapiv1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/test/framework"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -163,6 +164,40 @@ var _ = Describe("Helm Tests", func() {
 		})
 		It("Should upgrade the release successfully", func() {
 			Expect(len(pods)).To(BeEquivalentTo(3))
+		})
+	})
+
+	Context("When a helm V3 chart specifies a timeout", func() {
+		var (
+			err   error
+			chart *helmapiv1.HelmChart
+			pods  []corev1.Pod
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-timeout",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.Timeout = &v1.Duration{Duration: time.Minute * 15}
+
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			pods, err = framework.WaitForChartApp(chart, "traefik", 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should install the release successfully", func() {
+			Expect(len(pods)).To(BeEquivalentTo(1))
 		})
 	})
 
