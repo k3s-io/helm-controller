@@ -65,6 +65,21 @@ func TestInstallArgs(t *testing.T) {
 		stringArgs)
 }
 
+func TestInstallArgsWithNoHooks(t *testing.T) {
+	assert := assert.New(t)
+	chart := NewChart()
+	chart.Spec.NoHooks = true
+	stringArgs := strings.Join(args(chart), " ")
+	assert.Equal("install "+
+		"--no-hooks "+
+		"--set-string acme.dnsProvider.name=cloudflare "+
+		"--set-string global.clusterCIDR=10.42.0.0/16\\,fd42::/48 "+
+		"--set-string global.systemDefaultRegistry= "+
+		"--set rbac.enabled=true "+
+		"--set ssl.enabled=false",
+		stringArgs)
+}
+
 func TestDeleteArgs(t *testing.T) {
 	assert := assert.New(t)
 	chart := NewChart()
