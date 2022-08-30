@@ -429,7 +429,7 @@ func job(chart *v1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.ConfigMap)
 	if chart.Spec.Timeout != nil {
 		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
 			Name:  "TIMEOUT",
-			Value: chart.Spec.Timeout.String(),
+			Value: chart.Spec.Timeout.Duration.String(),
 		})
 	}
 
