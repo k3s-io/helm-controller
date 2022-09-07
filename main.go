@@ -1,6 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"log"
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/k3s-io/helm-controller/pkg/controllers"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	"github.com/k3s-io/helm-controller/pkg/crd"
@@ -25,9 +30,18 @@ type HelmController struct {
 	MasterURL  string `short:"m" usage:"Kubernetes cluster master URL" env:"MASTERURL"`
 	Namespace  string `short:"n" usage:"Namespace to watch, empty means it will watch CRDs in all namespaces." env:"NAMESPACE"`
 	Threads    int    `short:"t" usage:"Threadiness level to set, defaults to 2." default:"2" env:"THREADS"`
+	PprofPort  int    `usage:"Port to publish HTTP server runtime profiling data in the format expected by the pprof visualization tool. Only enabled if in debug mode" default:"6060"`
 }
 
 func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
+	if debugConfig.Debug && a.PprofPort > 0 {
+		go func() {
+			// Serves HTTP server runtime profiling data in the format expected by the
+			// pprof visualization tool at the provided endpoint on the local network
+			// See https://pkg.go.dev/net/http/pprof?utm_source=gopls for more information
+			log.Println(http.ListenAndServe(fmt.Sprintf("localhost:%d", a.PprofPort), nil))
+		}()
+	}
 	debugConfig.MustSetupDebug()
 
 	cfg := a.GetNonInteractiveClientConfig()
