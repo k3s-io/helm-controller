@@ -9,7 +9,7 @@ import (
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/test/framework"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -170,7 +170,7 @@ var _ = Describe("Helm Tests", func() {
 	Context("When a helm V3 chart specifies a timeout", func() {
 		var (
 			err   error
-			chart *helmapiv1.HelmChart
+			chart *v1.HelmChart
 			pods  []corev1.Pod
 		)
 		BeforeEach(func() {
@@ -188,7 +188,7 @@ var _ = Describe("Helm Tests", func() {
 						StrVal: "true",
 					},
 				})
-			chart.Spec.Timeout = &v1.Duration{Duration: time.Minute * 15}
+			chart.Spec.Timeout = &metav1.Duration{Duration: time.Minute * 15}
 
 			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
