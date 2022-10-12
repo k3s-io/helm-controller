@@ -87,6 +87,7 @@ func main() {
 	cmd := command.Command(&HelmController{}, cobra.Command{
 		Version: version.FriendlyVersion(),
 	})
+
 	cmd = command.AddDebug(cmd, &debugConfig)
 	command.Main(cmd)
 }
