@@ -152,7 +152,8 @@ steps:
     path: /var/run/docker.sock
 
 - name: github_binary_release
-  image: plugins/github-release
+  # latest tag is no longer available for ARM 32-bit
+  image: plugins/github-release:linux-arm
   settings:
     api_key:
       from_secret: github_token
@@ -173,7 +174,8 @@ steps:
     - refs/tags/*
 
 - name: docker-publish
-  image: plugins/docker
+  # latest tag is no longer available for ARM 32-bit
+  image: plugins/docker:linux-arm
   settings:
     dockerfile: package/Dockerfile
     username:
