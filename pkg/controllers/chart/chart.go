@@ -53,7 +53,7 @@ const (
 var (
 	commaRE              = regexp.MustCompile(`\\*,`)
 	deletePolicy         = metav1.DeletePropagationForeground
-	DefaultJobImage      = "rancher/klipper-helm:v0.7.5-build20230118"
+	DefaultJobImage      = "rancher/klipper-helm:v0.7.6-build20230223"
 	DefaultFailurePolicy = FailurePolicyReinstall
 )
 
