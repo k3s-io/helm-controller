@@ -1,0 +1,14 @@
+version: 2
+updates:
+
+  # Maintain dependencies for Docker Images
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/package"
+    schedule:
+      interval: "weekly"
+
