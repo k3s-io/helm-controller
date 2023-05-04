@@ -11,9 +11,9 @@ scms:
       email: "{{ .github.email }}"
       username: "{{ requiredEnv .github.username }}"
       token: '{{ requiredEnv .github.token }}'
-      owner: "{{ .helm-controller.org }}"
-      repository: "{{ .helm-controller.repo }}"
-      branch: "{{ .helm-controller.branch }}"
+      owner: "k3s-io"
+      repository: "helm-controller"
+      branch: "master"
   go:
     kind: "github"
     spec:
@@ -21,9 +21,9 @@ scms:
       email: "{{ .github.email }}"
       username: "{{ requiredEnv .github.username }}"
       token: '{{ requiredEnv .github.token }}'
-      owner: "{{ .go.org }}"
-      repository: "{{ .go.repo }}"
-      branch: "{{ .go.branch }}"
+      owner: "golang"
+      repository: "go"
+      branch: "master"
 
 sources:
   # validate gittag parsing external public repos
