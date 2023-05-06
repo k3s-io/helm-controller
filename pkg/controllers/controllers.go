@@ -86,7 +86,8 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		appCtx.Batch.Job().Cache(),
 		appCtx.RBAC.ClusterRoleBinding(),
 		appCtx.Core.ServiceAccount(),
-		appCtx.Core.ConfigMap())
+		appCtx.Core.ConfigMap(),
+		appCtx.Core.Secret())
 
 	klog.Infof("Starting helm controller with %d threads", opts.Threadiness)
 

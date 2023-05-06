@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -53,7 +54,7 @@ const (
 var (
 	commaRE              = regexp.MustCompile(`\\*,`)
 	deletePolicy         = metav1.DeletePropagationForeground
-	DefaultJobImage      = "rancher/klipper-helm:v0.7.7-build20230403"
+	DefaultJobImage      = "rancher/klipper-helm:v0.8.0-build20230510"
 	DefaultFailurePolicy = FailurePolicyReinstall
 )
 
@@ -83,7 +84,8 @@ func Register(ctx context.Context,
 	jobCache batchcontroller.JobCache,
 	crbs rbaccontroller.ClusterRoleBindingController,
 	sas corecontroller.ServiceAccountController,
-	cm corecontroller.ConfigMapController) {
+	cm corecontroller.ConfigMapController,
+	s corecontroller.SecretController) {
 
 	c := &Controller{
 		systemNamespace: systemNamespace,
@@ -98,7 +100,7 @@ func Register(ctx context.Context,
 	}
 
 	c.apply = apply.
-		WithCacheTypes(helms, confs, jobs, crbs, sas, cm).
+		WithCacheTypes(helms, confs, jobs, crbs, sas, cm, s).
 		WithStrictCaching().
 		WithPatcher(batch.SchemeGroupVersion.WithKind("Job"), c.jobPatcher)
 
@@ -308,7 +310,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	}
 
 	// get the default job and configmaps
-	job, valuesConfigMap, contentConfigMap := job(chart)
+	job, valuesSecret, contentConfigMap := job(chart)
 
 	// check if a HelmChartConfig is registered for this Helm chart
 	config, err := c.confCache.Get(chart.Namespace, chart.Name)
@@ -319,7 +321,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	}
 	if config != nil {
 		// Merge the values into the HelmChart's values
-		valuesConfigMapAddConfig(valuesConfigMap, config)
+		valuesSecretAddConfig(valuesSecret, config)
 		// Override the failure policy to what is provided in the HelmChartConfig
 		if config.Spec.FailurePolicy != "" {
 			failurePolicy = config.Spec.FailurePolicy
@@ -329,17 +331,17 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	// note: the purpose of the additional annotation is to cause the job to be destroyed
 	// and recreated if the hash of the HelmChartConfig changes while it is being processed
 	setFailurePolicy(job, failurePolicy)
-	hashConfigMaps(job, contentConfigMap, valuesConfigMap)
+	hashObjects(job, contentConfigMap, valuesSecret)
 
 	return job, []runtime.Object{
-		valuesConfigMap,
+		valuesSecret,
 		contentConfigMap,
 		serviceAccount(chart),
 		roleBinding(chart),
 	}, nil
 }
 
-func job(chart *v1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.ConfigMap) {
+func job(chart *v1.HelmChart) (*batch.Job, *corev1.Secret, *corev1.ConfigMap) {
 	jobImage := strings.TrimSpace(chart.Spec.JobImage)
 	if jobImage == "" {
 		jobImage = DefaultJobImage
@@ -353,6 +355,11 @@ func job(chart *v1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.ConfigMap)
 	targetNamespace := chart.Namespace
 	if len(chart.Spec.TargetNamespace) != 0 {
 		targetNamespace = chart.Spec.TargetNamespace
+	}
+
+	chartName := chart.Spec.Chart
+	if chart.Spec.Repo != "" {
+		chartName = chart.Name + "/" + chart.Spec.Chart
 	}
 
 	job := &batch.Job{
@@ -407,7 +414,7 @@ func job(chart *v1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.ConfigMap)
 								},
 								{
 									Name:  "CHART",
-									Value: chart.Spec.Chart,
+									Value: chartName,
 								},
 								{
 									Name:  "HELM_VERSION",
@@ -416,6 +423,10 @@ func job(chart *v1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.ConfigMap)
 								{
 									Name:  "TARGET_NAMESPACE",
 									Value: targetNamespace,
+								},
+								{
+									Name:  "AUTH_PASS_CREDENTIALS",
+									Value: fmt.Sprintf("%t", chart.Spec.AuthPassCredentials),
 								},
 							},
 						},
@@ -479,38 +490,41 @@ func job(chart *v1.HelmChart) (*batch.Job, *corev1.ConfigMap, *corev1.ConfigMap)
 	}
 
 	setProxyEnv(job)
-	valueConfigMap := setValuesConfigMap(job, chart)
+	setAuthSecret(job, chart)
+	setRepoCAConfigMap(job, chart)
+	valuesSecret := setValuesSecret(job, chart)
 	contentConfigMap := setContentConfigMap(job, chart)
 
-	return job, valueConfigMap, contentConfigMap
+	return job, valuesSecret, contentConfigMap
 }
 
-func valuesConfigMap(chart *v1.HelmChart) *corev1.ConfigMap {
-	var configMap = &corev1.ConfigMap{
+func valuesSecret(chart *v1.HelmChart) *corev1.Secret {
+	var secret = &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
-			Kind:       "ConfigMap",
+			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("chart-values-%s", chart.Name),
 			Namespace: chart.Namespace,
 		},
-		Data: map[string]string{},
+		Type:       corev1.SecretTypeOpaque,
+		StringData: map[string]string{},
 	}
 
 	if chart.Spec.ValuesContent != "" {
-		configMap.Data["values-01_HelmChart.yaml"] = chart.Spec.ValuesContent
+		secret.StringData["values-01_HelmChart.yaml"] = chart.Spec.ValuesContent
 	}
 	if chart.Spec.RepoCA != "" {
-		configMap.Data["ca-file.pem"] = chart.Spec.RepoCA
+		secret.StringData["ca-file.pem"] = chart.Spec.RepoCA
 	}
 
-	return configMap
+	return secret
 }
 
-func valuesConfigMapAddConfig(configMap *corev1.ConfigMap, config *v1.HelmChartConfig) {
+func valuesSecretAddConfig(secret *corev1.Secret, config *v1.HelmChartConfig) {
 	if config.Spec.ValuesContent != "" {
-		configMap.Data["values-10_HelmChartConfig.yaml"] = config.Spec.ValuesContent
+		secret.StringData["values-10_HelmChartConfig.yaml"] = config.Spec.ValuesContent
 	}
 }
 
@@ -565,9 +579,6 @@ func args(chart *v1.HelmChart) []string {
 	}
 	if spec.TargetNamespace != "" {
 		args = append(args, "--namespace", spec.TargetNamespace)
-	}
-	if spec.Repo != "" {
-		args = append(args, "--repo", spec.Repo)
 	}
 	if spec.Version != "" {
 		args = append(args, "--version", spec.Version)
@@ -668,16 +679,14 @@ func contentConfigMap(chart *v1.HelmChart) *corev1.ConfigMap {
 	return configMap
 }
 
-func setValuesConfigMap(job *batch.Job, chart *v1.HelmChart) *corev1.ConfigMap {
-	configMap := valuesConfigMap(chart)
+func setValuesSecret(job *batch.Job, chart *v1.HelmChart) *corev1.Secret {
+	secret := valuesSecret(chart)
 
 	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
 		Name: "values",
 		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: configMap.Name,
-				},
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: secret.Name,
 			},
 		},
 	})
@@ -687,7 +696,7 @@ func setValuesConfigMap(job *batch.Job, chart *v1.HelmChart) *corev1.ConfigMap {
 		Name:      "values",
 	})
 
-	return configMap
+	return secret
 }
 
 func setContentConfigMap(job *batch.Job, chart *v1.HelmChart) *corev1.ConfigMap {
@@ -715,6 +724,42 @@ func setContentConfigMap(job *batch.Job, chart *v1.HelmChart) *corev1.ConfigMap 
 	return configMap
 }
 
+func setAuthSecret(job *batch.Job, chart *v1.HelmChart) {
+	if secret := chart.Spec.AuthSecret; secret != nil {
+		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: "auth",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secret.Name,
+				},
+			},
+		})
+
+		job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			MountPath: "/auth",
+			Name:      "auth",
+		})
+	}
+}
+
+func setRepoCAConfigMap(job *batch.Job, chart *v1.HelmChart) {
+	if cm := chart.Spec.RepoCAConfigMap; cm != nil {
+		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: "ca-files",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: *cm,
+				},
+			},
+		})
+
+		job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			MountPath: "/ca-files",
+			Name:      "ca-files",
+		})
+	}
+}
+
 func setFailurePolicy(job *batch.Job, failurePolicy string) {
 	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
 		Name:  "FAILURE_POLICY",
@@ -722,17 +767,19 @@ func setFailurePolicy(job *batch.Job, failurePolicy string) {
 	})
 }
 
-func hashConfigMaps(job *batch.Job, maps ...*corev1.ConfigMap) {
+func hashObjects(job *batch.Job, objs ...metav1.Object) {
 	hash := sha256.New()
 
-	for _, configMap := range maps {
-		for k, v := range configMap.Data {
-			hash.Write([]byte(k))
-			hash.Write([]byte(v))
-		}
-		for k, v := range configMap.BinaryData {
-			hash.Write([]byte(k))
-			hash.Write(v)
+	for _, obj := range objs {
+		if uobj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj); err == nil {
+			for _, field := range []string{"data", "binaryData", "stringData"} {
+				if data, _, err := unstructured.NestedStringMap(uobj, field); err == nil {
+					for k, v := range data {
+						hash.Write([]byte(k))
+						hash.Write([]byte(v))
+					}
+				}
+			}
 		}
 	}
 
