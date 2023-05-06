@@ -1,7 +1,9 @@
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -22,6 +24,7 @@ type HelmChartSpec struct {
 	Version         string                        `json:"version,omitempty"`
 	Repo            string                        `json:"repo,omitempty"`
 	RepoCA          string                        `json:"repoCA,omitempty"`
+	RepoCAConfigMap *corev1.LocalObjectReference  `json:"repoCAConfigMap,omitempty"`
 	Set             map[string]intstr.IntOrString `json:"set,omitempty"`
 	ValuesContent   string                        `json:"valuesContent,omitempty"`
 	HelmVersion     string                        `json:"helmVersion,omitempty"`
@@ -30,6 +33,9 @@ type HelmChartSpec struct {
 	JobImage        string                        `json:"jobImage,omitempty"`
 	Timeout         *metav1.Duration              `json:"timeout,omitempty"`
 	FailurePolicy   string                        `json:"failurePolicy,omitempty"`
+	AuthSecret      *corev1.LocalObjectReference  `json:"authSecret,omitempty"`
+
+	AuthPassCredentials bool `json:"authPassCredentials,omitempty"`
 }
 
 type HelmChartStatus struct {

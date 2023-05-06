@@ -105,7 +105,7 @@ func (c *FakeHelmChartConfigs) Update(ctx context.Context, helmChartConfig *helm
 // Delete takes name of the helmChartConfig and deletes it. Returns an error if one occurs.
 func (c *FakeHelmChartConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(helmchartconfigsResource, c.ns, name), &helmcattleiov1.HelmChartConfig{})
+		Invokes(testing.NewDeleteActionWithOptions(helmchartconfigsResource, c.ns, name, opts), &helmcattleiov1.HelmChartConfig{})
 
 	return err
 }
