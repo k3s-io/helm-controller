@@ -20,6 +20,7 @@ type HelmChart struct {
 
 type HelmChartSpec struct {
 	TargetNamespace string                        `json:"targetNamespace,omitempty"`
+	CreateNamespace bool                          `json:"createNamespace,omitempty"`
 	Chart           string                        `json:"chart,omitempty"`
 	Version         string                        `json:"version,omitempty"`
 	Repo            string                        `json:"repo,omitempty"`

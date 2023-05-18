@@ -22,7 +22,6 @@ import (
 	batch "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -102,7 +101,7 @@ func Register(ctx context.Context,
 	c.apply = apply.
 		WithCacheTypes(helms, confs, jobs, crbs, sas, cm, s).
 		WithStrictCaching().
-		WithPatcher(batch.SchemeGroupVersion.WithKind("Job"), c.jobPatcher)
+		WithPatcher(jobs.GroupVersionKind(), c.jobPatcher)
 
 	relatedresource.Watch(ctx, "resolve-helm-chart-from-config", c.resolveHelmChartFromConfig, helms, confs)
 
@@ -156,7 +155,7 @@ func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runt
 	if conf, ok := obj.(*v1.HelmChartConfig); ok {
 		chart, err := c.helmCache.Get(conf.Namespace, conf.Name)
 		if err != nil {
-			if !errors.IsNotFound(err) {
+			if !apierrors.IsNotFound(err) {
 				return nil, err
 			}
 		}
@@ -228,7 +227,7 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 
 	// once we have run the above logic, we can now check if the job is complete
 	job, err := c.jobCache.Get(chart.Namespace, expectedJob.Name)
-	if errors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		// the above apply should have created it, something is wrong.
 		// if you are here, there must be a bug in the code.
 		return chart, fmt.Errorf("could not perform uninstall: expected job %s/%s to exist after apply, but not found", chart.Namespace, expectedJob.Name)
@@ -315,7 +314,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	// check if a HelmChartConfig is registered for this Helm chart
 	config, err := c.confCache.Get(chart.Namespace, chart.Name)
 	if err != nil {
-		if !errors.IsNotFound(err) {
+		if !apierrors.IsNotFound(err) {
 			return nil, nil, err
 		}
 	}
@@ -580,6 +579,11 @@ func args(chart *v1.HelmChart) []string {
 	if spec.TargetNamespace != "" {
 		args = append(args, "--namespace", spec.TargetNamespace)
 	}
+
+	if spec.CreateNamespace {
+		args = append(args, "--create-namespace")
+	}
+
 	if spec.Version != "" {
 		args = append(args, "--version", spec.Version)
 	}

@@ -3,14 +3,14 @@ set -ex
 
 K3S_WAIT_TIME=15
 K3S_NODE_NAME=helmtest-node1
-K3S_VERSION=v1.23.3-k3s1
+K3S_VERSION=v1.25.9-k3s1
 
 cd $(dirname $0)/..
 
 setup_k8s(){
     # Using k3s with embedded helm controller disabled
     docker pull rancher/k3s:$K3S_VERSION
-    docker run --detach --privileged --rm --publish 6443 --name $K3S_NODE_NAME --hostname $K3S_NODE_NAME rancher/k3s:$K3S_VERSION server --disable-helm-controller
+    docker run --detach --privileged --rm --publish 6443 --name $K3S_NODE_NAME --hostname $K3S_NODE_NAME rancher/k3s:$K3S_VERSION server --disable-helm-controller --disable=metrics-server,traefik
     K3S_NODE_IP=$(docker inspect $K3S_NODE_NAME --format='{{index .NetworkSettings.Networks "bridge" "IPAddress"}}')
     sleep $K3S_WAIT_TIME
     docker exec $K3S_NODE_NAME sed "s/127.0.0.1/$K3S_NODE_IP/" /etc/rancher/k3s/k3s.yaml > $PWD/kube_config_cluster.yml
@@ -21,7 +21,7 @@ teardown_k8s(){
 }
 
 load_helm_image(){
-    cat bin/helm-controller-amd64.tar | docker exec -i $K3S_NODE_NAME ctr --namespace k8s.io image import -
+    docker image save $HELM_CONTROLLER_IMAGE | docker exec -i $K3S_NODE_NAME ctr --namespace k8s.io image import -
 }
 
 trap teardown_k8s EXIT

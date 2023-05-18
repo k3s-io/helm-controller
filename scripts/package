@@ -46,7 +46,6 @@ if [ -e ${DOCKERFILE}.${ARCH} ]; then
 fi
 
 docker build -f ${DOCKERFILE} -t ${IMAGE} .
-docker image save ${IMAGE} -o bin/helm-controller-${ARCH}.tar
 echo ${IMAGE} > bin/helm-controller-image.txt
 
 echo Built ${IMAGE}
