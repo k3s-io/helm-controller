@@ -2,6 +2,8 @@ package framework
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -9,11 +11,11 @@ import (
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
+	helmcrd "github.com/k3s-io/helm-controller/pkg/crd"
 	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/crd"
-	"github.com/rancher/wrangler/pkg/schemas/openapi"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -43,12 +45,12 @@ type Framework struct {
 
 func New() (*Framework, error) {
 	framework := &Framework{}
-	ginkgo.BeforeSuite(framework.BeforeSuite)
-	ginkgo.AfterSuite(framework.AfterSuite)
+	ginkgo.BeforeAll(framework.BeforeAll)
+	ginkgo.AfterAll(framework.AfterAll)
 	return framework, nil
 }
 
-func (f *Framework) BeforeSuite() {
+func (f *Framework) BeforeAll() {
 	f.beforeFramework()
 	err := f.setupController(context.TODO())
 	if err != nil {
@@ -56,7 +58,28 @@ func (f *Framework) BeforeSuite() {
 	}
 }
 
-func (f *Framework) AfterSuite() {
+func (f *Framework) AfterAll() {
+	if ginkgo.CurrentSpecReport().Failed() {
+		podList, _ := f.ClientSet.CoreV1().Pods(f.Namespace).List(context.Background(), metav1.ListOptions{})
+		for _, pod := range podList.Items {
+			containerNames := []string{}
+			for _, container := range pod.Spec.InitContainers {
+				containerNames = append(containerNames, container.Name)
+			}
+			for _, container := range pod.Spec.Containers {
+				containerNames = append(containerNames, container.Name)
+			}
+			for _, container := range containerNames {
+				reportName := fmt.Sprintf("podlogs-%s-%s", pod.Name, container)
+				logs := f.ClientSet.CoreV1().Pods(f.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{Container: container})
+				if logStreamer, err := logs.Stream(context.Background()); err == nil {
+					if podLogs, err := io.ReadAll(logStreamer); err == nil {
+						ginkgo.AddReportEntry(reportName, string(podLogs))
+					}
+				}
+			}
+		}
+	}
 	if err := f.teardownController(context.TODO()); err != nil {
 		errExit("Failed to teardown helm controller", err)
 	}
@@ -73,7 +96,7 @@ func (f *Framework) beforeFramework() {
 	errExit("Failed to initiate a client set", err)
 	crdFactory, err := crd.NewFactoryFromClient(config)
 	errExit("Failed initiate factory client", err)
-	f.crds, err = getCRDs()
+	f.crds = helmcrd.List()
 	errExit("Failed to construct helm crd", err)
 
 	f.HelmClientSet = helmcln
@@ -89,50 +112,6 @@ func errExit(msg string, err error) {
 		return
 	}
 	logrus.Panicf("%s: %v", msg, err)
-}
-
-func getCRDs() ([]crd.CRD, error) {
-	var crds []crd.CRD
-	for _, crdFn := range []func() (*crd.CRD, error){
-		ChartCRD,
-		ConfigCRD,
-	} {
-		crdef, err := crdFn()
-		if err != nil {
-			return nil, err
-		}
-		crds = append(crds, *crdef)
-	}
-
-	return crds, nil
-}
-
-func ChartCRD() (*crd.CRD, error) {
-	prototype := v1.NewHelmChart("", "", v1.HelmChart{})
-	schema, err := openapi.ToOpenAPIFromStruct(*prototype)
-	if err != nil {
-		return nil, err
-	}
-	return &crd.CRD{
-		GVK:        prototype.GroupVersionKind(),
-		PluralName: v1.HelmChartResourceName,
-		Status:     true,
-		Schema:     schema,
-	}, nil
-}
-
-func ConfigCRD() (*crd.CRD, error) {
-	prototype := v1.NewHelmChartConfig("", "", v1.HelmChartConfig{})
-	schema, err := openapi.ToOpenAPIFromStruct(*prototype)
-	if err != nil {
-		return nil, err
-	}
-	return &crd.CRD{
-		GVK:        prototype.GroupVersionKind(),
-		PluralName: v1.HelmChartConfigResourceName,
-		Status:     true,
-		Schema:     schema,
-	}, nil
 }
 
 func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set map[string]intstr.IntOrString) *v1.HelmChart {
@@ -155,9 +134,13 @@ func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set m
 }
 
 func (f *Framework) WaitForRelease(chart *v1.HelmChart, labelSelector labels.Selector, timeout time.Duration, count int) (secrets []corev1.Secret, err error) {
+	namespace := chart.Namespace
+	if chart.Spec.TargetNamespace != "" {
+		namespace = chart.Spec.TargetNamespace
+	}
 
 	return secrets, wait.Poll(5*time.Second, timeout, func() (bool, error) {
-		list, err := f.ClientSet.CoreV1().Secrets(chart.Namespace).List(context.TODO(), metav1.ListOptions{
+		list, err := f.ClientSet.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{
 			LabelSelector: labelSelector.String(),
 		})
 		if err != nil {
