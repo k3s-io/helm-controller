@@ -16,5 +16,5 @@ spec:
     spec:
       containers:
         - name: helm-controller
-          image: rancher/helm-controller:v0.12.1
+          image: rancher/helm-controller:v0.15.0
           command: ["helm-controller"]
