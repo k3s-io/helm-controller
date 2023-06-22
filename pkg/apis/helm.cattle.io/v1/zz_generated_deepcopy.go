@@ -190,6 +190,11 @@ func (in *HelmChartSpec) DeepCopyInto(out *HelmChartSpec) {
 		*out = new(corev1.LocalObjectReference)
 		**out = **in
 	}
+	if in.DockerRegistrySecret != nil {
+		in, out := &in.DockerRegistrySecret, &out.DockerRegistrySecret
+		*out = new(corev1.LocalObjectReference)
+		**out = **in
+	}
 	return
 }
 

@@ -490,6 +490,7 @@ func job(chart *v1.HelmChart) (*batch.Job, *corev1.Secret, *corev1.ConfigMap) {
 
 	setProxyEnv(job)
 	setAuthSecret(job, chart)
+	setDockerRegistrySecret(job, chart)
 	setRepoCAConfigMap(job, chart)
 	valuesSecret := setValuesSecret(job, chart)
 	contentConfigMap := setContentConfigMap(job, chart)
@@ -742,6 +743,28 @@ func setAuthSecret(job *batch.Job, chart *v1.HelmChart) {
 		job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 			MountPath: "/auth",
 			Name:      "auth",
+		})
+	}
+}
+
+func setDockerRegistrySecret(job *batch.Job, chart *v1.HelmChart) {
+	if secret := chart.Spec.DockerRegistrySecret; secret != nil {
+		job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: "dockerconfig",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secret.Name,
+					Items: []corev1.KeyToPath{{
+						Key:  ".dockerconfigjson",
+						Path: "config.json",
+					}},
+				},
+			},
+		})
+
+		job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			MountPath: "/home/klipper-helm/.docker",
+			Name:      "dockerconfig",
 		})
 	}
 }
