@@ -68,10 +68,11 @@ type Controller struct {
 	jobCache        batchcontroller.JobCache
 	apply           apply.Apply
 	recorder        record.EventRecorder
+	apiServerPort   string
 }
 
 func Register(ctx context.Context,
-	systemNamespace, managedBy string,
+	systemNamespace, managedBy, apiServerPort string,
 	k8s kubernetes.Interface,
 	apply apply.Apply,
 	recorder record.EventRecorder,
@@ -96,6 +97,7 @@ func Register(ctx context.Context,
 		jobs:            jobs,
 		jobCache:        jobCache,
 		recorder:        recorder,
+		apiServerPort:   apiServerPort,
 	}
 
 	c.apply = apply.
@@ -309,7 +311,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	}
 
 	// get the default job and configmaps
-	job, valuesSecret, contentConfigMap := job(chart)
+	job, valuesSecret, contentConfigMap := job(chart, c.apiServerPort)
 
 	// check if a HelmChartConfig is registered for this Helm chart
 	config, err := c.confCache.Get(chart.Namespace, chart.Name)
@@ -340,7 +342,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	}, nil
 }
 
-func job(chart *v1.HelmChart) (*batch.Job, *corev1.Secret, *corev1.ConfigMap) {
+func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret, *corev1.ConfigMap) {
 	jobImage := strings.TrimSpace(chart.Spec.JobImage)
 	if jobImage == "" {
 		jobImage = DefaultJobImage
@@ -481,7 +483,7 @@ func job(chart *v1.HelmChart) (*batch.Job, *corev1.Secret, *corev1.ConfigMap) {
 				Value: "127.0.0.1"},
 			{
 				Name:  "KUBERNETES_SERVICE_PORT",
-				Value: "6443"},
+				Value: apiServerPort},
 			{
 				Name:  "BOOTSTRAP",
 				Value: "true"},
