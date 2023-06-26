@@ -75,6 +75,7 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 	chart.Register(ctx,
 		systemNamespace,
 		controllerName,
+		"6443",
 		appCtx.K8s,
 		appCtx.Apply,
 		recorder,
