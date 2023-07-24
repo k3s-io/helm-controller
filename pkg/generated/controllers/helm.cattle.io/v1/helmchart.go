@@ -23,8 +23,6 @@ import (
 	"time"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
-	"github.com/rancher/lasso/pkg/client"
-	"github.com/rancher/lasso/pkg/controller"
 	"github.com/rancher/wrangler/pkg/apply"
 	"github.com/rancher/wrangler/pkg/condition"
 	"github.com/rancher/wrangler/pkg/generic"
@@ -36,236 +34,120 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 )
 
-type HelmChartHandler func(string, *v1.HelmChart) (*v1.HelmChart, error)
-
+// HelmChartController interface for managing HelmChart resources.
 type HelmChartController interface {
 	generic.ControllerMeta
 	HelmChartClient
 
+	// OnChange runs the given handler when the controller detects a resource was changed.
 	OnChange(ctx context.Context, name string, sync HelmChartHandler)
+
+	// OnRemove runs the given handler when the controller detects a resource was changed.
 	OnRemove(ctx context.Context, name string, sync HelmChartHandler)
+
+	// Enqueue adds the resource with the given name to the worker queue of the controller.
 	Enqueue(namespace, name string)
+
+	// EnqueueAfter runs Enqueue after the provided duration.
 	EnqueueAfter(namespace, name string, duration time.Duration)
 
+	// Cache returns a cache for the resource type T.
 	Cache() HelmChartCache
 }
 
+// HelmChartClient interface for managing HelmChart resources in Kubernetes.
 type HelmChartClient interface {
+	// Create creates a new object and return the newly created Object or an error.
 	Create(*v1.HelmChart) (*v1.HelmChart, error)
+
+	// Update updates the object and return the newly updated Object or an error.
 	Update(*v1.HelmChart) (*v1.HelmChart, error)
+	// UpdateStatus updates the Status field of a the object and return the newly updated Object or an error.
+	// Will always return an error if the object does not have a status field.
 	UpdateStatus(*v1.HelmChart) (*v1.HelmChart, error)
+
+	// Delete deletes the Object in the given name.
 	Delete(namespace, name string, options *metav1.DeleteOptions) error
+
+	// Get will attempt to retrieve the resource with the specified name.
 	Get(namespace, name string, options metav1.GetOptions) (*v1.HelmChart, error)
+
+	// List will attempt to find multiple resources.
 	List(namespace string, opts metav1.ListOptions) (*v1.HelmChartList, error)
+
+	// Watch will start watching resources.
 	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
+
+	// Patch will patch the resource with the matching name.
 	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.HelmChart, err error)
 }
 
+// HelmChartCache interface for retrieving HelmChart resources in memory.
 type HelmChartCache interface {
+	// Get returns the resources with the specified name from the cache.
 	Get(namespace, name string) (*v1.HelmChart, error)
+
+	// List will attempt to find resources from the Cache.
 	List(namespace string, selector labels.Selector) ([]*v1.HelmChart, error)
 
+	// AddIndexer adds  a new Indexer to the cache with the provided name.
+	// If you call this after you already have data in the store, the results are undefined.
 	AddIndexer(indexName string, indexer HelmChartIndexer)
+
+	// GetByIndex returns the stored objects whose set of indexed values
+	// for the named index includes the given indexed value.
 	GetByIndex(indexName, key string) ([]*v1.HelmChart, error)
 }
 
+// HelmChartHandler is function for performing any potential modifications to a HelmChart resource.
+type HelmChartHandler func(string, *v1.HelmChart) (*v1.HelmChart, error)
+
+// HelmChartIndexer computes a set of indexed values for the provided object.
 type HelmChartIndexer func(obj *v1.HelmChart) ([]string, error)
 
-type helmChartController struct {
-	controller    controller.SharedController
-	client        *client.Client
-	gvk           schema.GroupVersionKind
-	groupResource schema.GroupResource
+// HelmChartGenericController wraps wrangler/pkg/generic.Controller so that the function definitions adhere to HelmChartController interface.
+type HelmChartGenericController struct {
+	generic.ControllerInterface[*v1.HelmChart, *v1.HelmChartList]
 }
 
-func NewHelmChartController(gvk schema.GroupVersionKind, resource string, namespaced bool, controller controller.SharedControllerFactory) HelmChartController {
-	c := controller.ForResourceKind(gvk.GroupVersion().WithResource(resource), gvk.Kind, namespaced)
-	return &helmChartController{
-		controller: c,
-		client:     c.Client(),
-		gvk:        gvk,
-		groupResource: schema.GroupResource{
-			Group:    gvk.Group,
-			Resource: resource,
-		},
+// OnChange runs the given resource handler when the controller detects a resource was changed.
+func (c *HelmChartGenericController) OnChange(ctx context.Context, name string, sync HelmChartHandler) {
+	c.ControllerInterface.OnChange(ctx, name, generic.ObjectHandler[*v1.HelmChart](sync))
+}
+
+// OnRemove runs the given object handler when the controller detects a resource was changed.
+func (c *HelmChartGenericController) OnRemove(ctx context.Context, name string, sync HelmChartHandler) {
+	c.ControllerInterface.OnRemove(ctx, name, generic.ObjectHandler[*v1.HelmChart](sync))
+}
+
+// Cache returns a cache of resources in memory.
+func (c *HelmChartGenericController) Cache() HelmChartCache {
+	return &HelmChartGenericCache{
+		c.ControllerInterface.Cache(),
 	}
 }
 
-func FromHelmChartHandlerToHandler(sync HelmChartHandler) generic.Handler {
-	return func(key string, obj runtime.Object) (ret runtime.Object, err error) {
-		var v *v1.HelmChart
-		if obj == nil {
-			v, err = sync(key, nil)
-		} else {
-			v, err = sync(key, obj.(*v1.HelmChart))
-		}
-		if v == nil {
-			return nil, err
-		}
-		return v, err
-	}
+// HelmChartGenericCache wraps wrangler/pkg/generic.Cache so the function definitions adhere to HelmChartCache interface.
+type HelmChartGenericCache struct {
+	generic.CacheInterface[*v1.HelmChart]
 }
 
-func (c *helmChartController) Updater() generic.Updater {
-	return func(obj runtime.Object) (runtime.Object, error) {
-		newObj, err := c.Update(obj.(*v1.HelmChart))
-		if newObj == nil {
-			return nil, err
-		}
-		return newObj, err
-	}
-}
-
-func UpdateHelmChartDeepCopyOnChange(client HelmChartClient, obj *v1.HelmChart, handler func(obj *v1.HelmChart) (*v1.HelmChart, error)) (*v1.HelmChart, error) {
-	if obj == nil {
-		return obj, nil
-	}
-
-	copyObj := obj.DeepCopy()
-	newObj, err := handler(copyObj)
-	if newObj != nil {
-		copyObj = newObj
-	}
-	if obj.ResourceVersion == copyObj.ResourceVersion && !equality.Semantic.DeepEqual(obj, copyObj) {
-		return client.Update(copyObj)
-	}
-
-	return copyObj, err
-}
-
-func (c *helmChartController) AddGenericHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.controller.RegisterHandler(ctx, name, controller.SharedControllerHandlerFunc(handler))
-}
-
-func (c *helmChartController) AddGenericRemoveHandler(ctx context.Context, name string, handler generic.Handler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), handler))
-}
-
-func (c *helmChartController) OnChange(ctx context.Context, name string, sync HelmChartHandler) {
-	c.AddGenericHandler(ctx, name, FromHelmChartHandlerToHandler(sync))
-}
-
-func (c *helmChartController) OnRemove(ctx context.Context, name string, sync HelmChartHandler) {
-	c.AddGenericHandler(ctx, name, generic.NewRemoveHandler(name, c.Updater(), FromHelmChartHandlerToHandler(sync)))
-}
-
-func (c *helmChartController) Enqueue(namespace, name string) {
-	c.controller.Enqueue(namespace, name)
-}
-
-func (c *helmChartController) EnqueueAfter(namespace, name string, duration time.Duration) {
-	c.controller.EnqueueAfter(namespace, name, duration)
-}
-
-func (c *helmChartController) Informer() cache.SharedIndexInformer {
-	return c.controller.Informer()
-}
-
-func (c *helmChartController) GroupVersionKind() schema.GroupVersionKind {
-	return c.gvk
-}
-
-func (c *helmChartController) Cache() HelmChartCache {
-	return &helmChartCache{
-		indexer:  c.Informer().GetIndexer(),
-		resource: c.groupResource,
-	}
-}
-
-func (c *helmChartController) Create(obj *v1.HelmChart) (*v1.HelmChart, error) {
-	result := &v1.HelmChart{}
-	return result, c.client.Create(context.TODO(), obj.Namespace, obj, result, metav1.CreateOptions{})
-}
-
-func (c *helmChartController) Update(obj *v1.HelmChart) (*v1.HelmChart, error) {
-	result := &v1.HelmChart{}
-	return result, c.client.Update(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *helmChartController) UpdateStatus(obj *v1.HelmChart) (*v1.HelmChart, error) {
-	result := &v1.HelmChart{}
-	return result, c.client.UpdateStatus(context.TODO(), obj.Namespace, obj, result, metav1.UpdateOptions{})
-}
-
-func (c *helmChartController) Delete(namespace, name string, options *metav1.DeleteOptions) error {
-	if options == nil {
-		options = &metav1.DeleteOptions{}
-	}
-	return c.client.Delete(context.TODO(), namespace, name, *options)
-}
-
-func (c *helmChartController) Get(namespace, name string, options metav1.GetOptions) (*v1.HelmChart, error) {
-	result := &v1.HelmChart{}
-	return result, c.client.Get(context.TODO(), namespace, name, result, options)
-}
-
-func (c *helmChartController) List(namespace string, opts metav1.ListOptions) (*v1.HelmChartList, error) {
-	result := &v1.HelmChartList{}
-	return result, c.client.List(context.TODO(), namespace, result, opts)
-}
-
-func (c *helmChartController) Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.client.Watch(context.TODO(), namespace, opts)
-}
-
-func (c *helmChartController) Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (*v1.HelmChart, error) {
-	result := &v1.HelmChart{}
-	return result, c.client.Patch(context.TODO(), namespace, name, pt, data, result, metav1.PatchOptions{}, subresources...)
-}
-
-type helmChartCache struct {
-	indexer  cache.Indexer
-	resource schema.GroupResource
-}
-
-func (c *helmChartCache) Get(namespace, name string) (*v1.HelmChart, error) {
-	obj, exists, err := c.indexer.GetByKey(namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(c.resource, name)
-	}
-	return obj.(*v1.HelmChart), nil
-}
-
-func (c *helmChartCache) List(namespace string, selector labels.Selector) (ret []*v1.HelmChart, err error) {
-
-	err = cache.ListAllByNamespace(c.indexer, namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.HelmChart))
-	})
-
-	return ret, err
-}
-
-func (c *helmChartCache) AddIndexer(indexName string, indexer HelmChartIndexer) {
-	utilruntime.Must(c.indexer.AddIndexers(map[string]cache.IndexFunc{
-		indexName: func(obj interface{}) (strings []string, e error) {
-			return indexer(obj.(*v1.HelmChart))
-		},
-	}))
-}
-
-func (c *helmChartCache) GetByIndex(indexName, key string) (result []*v1.HelmChart, err error) {
-	objs, err := c.indexer.ByIndex(indexName, key)
-	if err != nil {
-		return nil, err
-	}
-	result = make([]*v1.HelmChart, 0, len(objs))
-	for _, obj := range objs {
-		result = append(result, obj.(*v1.HelmChart))
-	}
-	return result, nil
+// AddIndexer adds  a new Indexer to the cache with the provided name.
+// If you call this after you already have data in the store, the results are undefined.
+func (c HelmChartGenericCache) AddIndexer(indexName string, indexer HelmChartIndexer) {
+	c.CacheInterface.AddIndexer(indexName, generic.Indexer[*v1.HelmChart](indexer))
 }
 
 type HelmChartStatusHandler func(obj *v1.HelmChart, status v1.HelmChartStatus) (v1.HelmChartStatus, error)
 
 type HelmChartGeneratingHandler func(obj *v1.HelmChart, status v1.HelmChartStatus) ([]runtime.Object, v1.HelmChartStatus, error)
+
+func FromHelmChartHandlerToHandler(sync HelmChartHandler) generic.Handler {
+	return generic.FromObjectHandlerToHandler(generic.ObjectHandler[*v1.HelmChart](sync))
+}
 
 func RegisterHelmChartStatusHandler(ctx context.Context, controller HelmChartController, condition condition.Cond, name string, handler HelmChartStatusHandler) {
 	statusHandler := &helmChartStatusHandler{

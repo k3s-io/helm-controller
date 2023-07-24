@@ -55,6 +55,7 @@ var (
 	deletePolicy         = metav1.DeletePropagationForeground
 	DefaultJobImage      = "rancher/klipper-helm:v0.8.0-build20230510"
 	DefaultFailurePolicy = FailurePolicyReinstall
+	defaultBackOffLimit  = pointer.Int32(1000)
 )
 
 type Controller struct {
@@ -310,6 +311,12 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 		failurePolicy = chart.Spec.FailurePolicy
 	}
 
+	// override default backOffLimit if specified
+	backOffLimit := defaultBackOffLimit
+	if chart.Spec.BackOffLimit != nil {
+		backOffLimit = chart.Spec.BackOffLimit
+	}
+
 	// get the default job and configmaps
 	job, valuesSecret, contentConfigMap := job(chart, c.apiServerPort)
 
@@ -332,6 +339,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	// note: the purpose of the additional annotation is to cause the job to be destroyed
 	// and recreated if the hash of the HelmChartConfig changes while it is being processed
 	setFailurePolicy(job, failurePolicy)
+	setBackOffLimit(job, backOffLimit)
 	hashObjects(job, contentConfigMap, valuesSecret)
 
 	return job, []runtime.Object{
@@ -376,7 +384,6 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 			},
 		},
 		Spec: batch.JobSpec{
-			BackoffLimit: pointer.Int32Ptr(1000),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{},
@@ -813,4 +820,8 @@ func hashObjects(job *batch.Job, objs ...metav1.Object) {
 	}
 
 	job.Spec.Template.ObjectMeta.Annotations[Annotation] = fmt.Sprintf("SHA256=%X", hash.Sum(nil))
+}
+
+func setBackOffLimit(job *batch.Job, backOffLimit *int32) {
+	job.Spec.BackoffLimit = backOffLimit
 }
