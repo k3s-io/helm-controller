@@ -180,6 +180,11 @@ func (in *HelmChartSpec) DeepCopyInto(out *HelmChartSpec) {
 			(*out)[key] = val
 		}
 	}
+	if in.BackOffLimit != nil {
+		in, out := &in.BackOffLimit, &out.BackOffLimit
+		*out = new(int32)
+		**out = **in
+	}
 	if in.Timeout != nil {
 		in, out := &in.Timeout, &out.Timeout
 		*out = new(metav1.Duration)

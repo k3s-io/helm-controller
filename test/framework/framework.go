@@ -203,3 +203,10 @@ func (f *Framework) WaitForChartApp(chart *v1.HelmChart, appName string, timeout
 		return len(pods) >= count, nil
 	})
 }
+
+func (f *Framework) GetJob(chart *v1.HelmChart) (*batchv1.Job, error) {
+	if chart.Status.JobName == "" {
+		return nil, fmt.Errorf("waiting for job name to be populated")
+	}
+	return f.ClientSet.BatchV1().Jobs(chart.Namespace).Get(context.TODO(), chart.Status.JobName, metav1.GetOptions{})
+}

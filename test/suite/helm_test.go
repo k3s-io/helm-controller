@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	batchv1 "k8s.io/api/batch/v1"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/test/framework"
@@ -420,5 +421,113 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				return err != nil && apierrors.IsNotFound(err)
 			}, 120*time.Second, 5*time.Second).Should(BeTrue())
 		})
+	})
+
+	Context("When a custom backoffLimit is specified", func() {
+		var (
+			err          error
+			chart        *v1.HelmChart
+			job          *batchv1.Job
+			backOffLimit int32
+		)
+		BeforeEach(func() {
+			backOffLimit = 10
+			chart = framework.NewHelmChart("traefik-example-custom-backoff",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.BackOffLimit = &backOffLimit
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should have correct job backOff Limit", func() {
+			Expect(*job.Spec.BackoffLimit).To(Equal(backOffLimit))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+
+	})
+
+	Context("When a no backoffLimit is specified", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+			job   *batchv1.Job
+		)
+		const (
+			defaultBackOffLimit = int32(1000)
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-default-backoff",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should have correct job backOff Limit", func() {
+			Expect(*job.Spec.BackoffLimit).To(Equal(defaultBackOffLimit))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+
 	})
 })
