@@ -3,7 +3,7 @@ package remove
 import (
 	"context"
 
-	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/v2/pkg/generic"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
