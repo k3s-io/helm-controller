@@ -19,114 +19,21 @@ limitations under the License.
 package v1
 
 import (
-	"context"
-	"time"
-
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
-	"github.com/rancher/wrangler/pkg/generic"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/watch"
+	"github.com/rancher/wrangler/v2/pkg/generic"
 )
 
 // HelmChartConfigController interface for managing HelmChartConfig resources.
 type HelmChartConfigController interface {
-	generic.ControllerMeta
-	HelmChartConfigClient
-
-	// OnChange runs the given handler when the controller detects a resource was changed.
-	OnChange(ctx context.Context, name string, sync HelmChartConfigHandler)
-
-	// OnRemove runs the given handler when the controller detects a resource was changed.
-	OnRemove(ctx context.Context, name string, sync HelmChartConfigHandler)
-
-	// Enqueue adds the resource with the given name to the worker queue of the controller.
-	Enqueue(namespace, name string)
-
-	// EnqueueAfter runs Enqueue after the provided duration.
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	// Cache returns a cache for the resource type T.
-	Cache() HelmChartConfigCache
+	generic.ControllerInterface[*v1.HelmChartConfig, *v1.HelmChartConfigList]
 }
 
 // HelmChartConfigClient interface for managing HelmChartConfig resources in Kubernetes.
 type HelmChartConfigClient interface {
-	// Create creates a new object and return the newly created Object or an error.
-	Create(*v1.HelmChartConfig) (*v1.HelmChartConfig, error)
-
-	// Update updates the object and return the newly updated Object or an error.
-	Update(*v1.HelmChartConfig) (*v1.HelmChartConfig, error)
-
-	// Delete deletes the Object in the given name.
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-
-	// Get will attempt to retrieve the resource with the specified name.
-	Get(namespace, name string, options metav1.GetOptions) (*v1.HelmChartConfig, error)
-
-	// List will attempt to find multiple resources.
-	List(namespace string, opts metav1.ListOptions) (*v1.HelmChartConfigList, error)
-
-	// Watch will start watching resources.
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-
-	// Patch will patch the resource with the matching name.
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.HelmChartConfig, err error)
+	generic.ClientInterface[*v1.HelmChartConfig, *v1.HelmChartConfigList]
 }
 
 // HelmChartConfigCache interface for retrieving HelmChartConfig resources in memory.
 type HelmChartConfigCache interface {
-	// Get returns the resources with the specified name from the cache.
-	Get(namespace, name string) (*v1.HelmChartConfig, error)
-
-	// List will attempt to find resources from the Cache.
-	List(namespace string, selector labels.Selector) ([]*v1.HelmChartConfig, error)
-
-	// AddIndexer adds  a new Indexer to the cache with the provided name.
-	// If you call this after you already have data in the store, the results are undefined.
-	AddIndexer(indexName string, indexer HelmChartConfigIndexer)
-
-	// GetByIndex returns the stored objects whose set of indexed values
-	// for the named index includes the given indexed value.
-	GetByIndex(indexName, key string) ([]*v1.HelmChartConfig, error)
-}
-
-// HelmChartConfigHandler is function for performing any potential modifications to a HelmChartConfig resource.
-type HelmChartConfigHandler func(string, *v1.HelmChartConfig) (*v1.HelmChartConfig, error)
-
-// HelmChartConfigIndexer computes a set of indexed values for the provided object.
-type HelmChartConfigIndexer func(obj *v1.HelmChartConfig) ([]string, error)
-
-// HelmChartConfigGenericController wraps wrangler/pkg/generic.Controller so that the function definitions adhere to HelmChartConfigController interface.
-type HelmChartConfigGenericController struct {
-	generic.ControllerInterface[*v1.HelmChartConfig, *v1.HelmChartConfigList]
-}
-
-// OnChange runs the given resource handler when the controller detects a resource was changed.
-func (c *HelmChartConfigGenericController) OnChange(ctx context.Context, name string, sync HelmChartConfigHandler) {
-	c.ControllerInterface.OnChange(ctx, name, generic.ObjectHandler[*v1.HelmChartConfig](sync))
-}
-
-// OnRemove runs the given object handler when the controller detects a resource was changed.
-func (c *HelmChartConfigGenericController) OnRemove(ctx context.Context, name string, sync HelmChartConfigHandler) {
-	c.ControllerInterface.OnRemove(ctx, name, generic.ObjectHandler[*v1.HelmChartConfig](sync))
-}
-
-// Cache returns a cache of resources in memory.
-func (c *HelmChartConfigGenericController) Cache() HelmChartConfigCache {
-	return &HelmChartConfigGenericCache{
-		c.ControllerInterface.Cache(),
-	}
-}
-
-// HelmChartConfigGenericCache wraps wrangler/pkg/generic.Cache so the function definitions adhere to HelmChartConfigCache interface.
-type HelmChartConfigGenericCache struct {
 	generic.CacheInterface[*v1.HelmChartConfig]
-}
-
-// AddIndexer adds  a new Indexer to the cache with the provided name.
-// If you call this after you already have data in the store, the results are undefined.
-func (c HelmChartConfigGenericCache) AddIndexer(indexName string, indexer HelmChartConfigIndexer) {
-	c.CacheInterface.AddIndexer(indexName, generic.Indexer[*v1.HelmChartConfig](indexer))
 }

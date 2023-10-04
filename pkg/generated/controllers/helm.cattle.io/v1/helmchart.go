@@ -20,144 +20,54 @@ package v1
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
-	"github.com/rancher/wrangler/pkg/apply"
-	"github.com/rancher/wrangler/pkg/condition"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/kv"
+	"github.com/rancher/wrangler/v2/pkg/apply"
+	"github.com/rancher/wrangler/v2/pkg/condition"
+	"github.com/rancher/wrangler/v2/pkg/generic"
+	"github.com/rancher/wrangler/v2/pkg/kv"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/watch"
 )
 
 // HelmChartController interface for managing HelmChart resources.
 type HelmChartController interface {
-	generic.ControllerMeta
-	HelmChartClient
-
-	// OnChange runs the given handler when the controller detects a resource was changed.
-	OnChange(ctx context.Context, name string, sync HelmChartHandler)
-
-	// OnRemove runs the given handler when the controller detects a resource was changed.
-	OnRemove(ctx context.Context, name string, sync HelmChartHandler)
-
-	// Enqueue adds the resource with the given name to the worker queue of the controller.
-	Enqueue(namespace, name string)
-
-	// EnqueueAfter runs Enqueue after the provided duration.
-	EnqueueAfter(namespace, name string, duration time.Duration)
-
-	// Cache returns a cache for the resource type T.
-	Cache() HelmChartCache
+	generic.ControllerInterface[*v1.HelmChart, *v1.HelmChartList]
 }
 
 // HelmChartClient interface for managing HelmChart resources in Kubernetes.
 type HelmChartClient interface {
-	// Create creates a new object and return the newly created Object or an error.
-	Create(*v1.HelmChart) (*v1.HelmChart, error)
-
-	// Update updates the object and return the newly updated Object or an error.
-	Update(*v1.HelmChart) (*v1.HelmChart, error)
-	// UpdateStatus updates the Status field of a the object and return the newly updated Object or an error.
-	// Will always return an error if the object does not have a status field.
-	UpdateStatus(*v1.HelmChart) (*v1.HelmChart, error)
-
-	// Delete deletes the Object in the given name.
-	Delete(namespace, name string, options *metav1.DeleteOptions) error
-
-	// Get will attempt to retrieve the resource with the specified name.
-	Get(namespace, name string, options metav1.GetOptions) (*v1.HelmChart, error)
-
-	// List will attempt to find multiple resources.
-	List(namespace string, opts metav1.ListOptions) (*v1.HelmChartList, error)
-
-	// Watch will start watching resources.
-	Watch(namespace string, opts metav1.ListOptions) (watch.Interface, error)
-
-	// Patch will patch the resource with the matching name.
-	Patch(namespace, name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.HelmChart, err error)
+	generic.ClientInterface[*v1.HelmChart, *v1.HelmChartList]
 }
 
 // HelmChartCache interface for retrieving HelmChart resources in memory.
 type HelmChartCache interface {
-	// Get returns the resources with the specified name from the cache.
-	Get(namespace, name string) (*v1.HelmChart, error)
-
-	// List will attempt to find resources from the Cache.
-	List(namespace string, selector labels.Selector) ([]*v1.HelmChart, error)
-
-	// AddIndexer adds  a new Indexer to the cache with the provided name.
-	// If you call this after you already have data in the store, the results are undefined.
-	AddIndexer(indexName string, indexer HelmChartIndexer)
-
-	// GetByIndex returns the stored objects whose set of indexed values
-	// for the named index includes the given indexed value.
-	GetByIndex(indexName, key string) ([]*v1.HelmChart, error)
-}
-
-// HelmChartHandler is function for performing any potential modifications to a HelmChart resource.
-type HelmChartHandler func(string, *v1.HelmChart) (*v1.HelmChart, error)
-
-// HelmChartIndexer computes a set of indexed values for the provided object.
-type HelmChartIndexer func(obj *v1.HelmChart) ([]string, error)
-
-// HelmChartGenericController wraps wrangler/pkg/generic.Controller so that the function definitions adhere to HelmChartController interface.
-type HelmChartGenericController struct {
-	generic.ControllerInterface[*v1.HelmChart, *v1.HelmChartList]
-}
-
-// OnChange runs the given resource handler when the controller detects a resource was changed.
-func (c *HelmChartGenericController) OnChange(ctx context.Context, name string, sync HelmChartHandler) {
-	c.ControllerInterface.OnChange(ctx, name, generic.ObjectHandler[*v1.HelmChart](sync))
-}
-
-// OnRemove runs the given object handler when the controller detects a resource was changed.
-func (c *HelmChartGenericController) OnRemove(ctx context.Context, name string, sync HelmChartHandler) {
-	c.ControllerInterface.OnRemove(ctx, name, generic.ObjectHandler[*v1.HelmChart](sync))
-}
-
-// Cache returns a cache of resources in memory.
-func (c *HelmChartGenericController) Cache() HelmChartCache {
-	return &HelmChartGenericCache{
-		c.ControllerInterface.Cache(),
-	}
-}
-
-// HelmChartGenericCache wraps wrangler/pkg/generic.Cache so the function definitions adhere to HelmChartCache interface.
-type HelmChartGenericCache struct {
 	generic.CacheInterface[*v1.HelmChart]
 }
 
-// AddIndexer adds  a new Indexer to the cache with the provided name.
-// If you call this after you already have data in the store, the results are undefined.
-func (c HelmChartGenericCache) AddIndexer(indexName string, indexer HelmChartIndexer) {
-	c.CacheInterface.AddIndexer(indexName, generic.Indexer[*v1.HelmChart](indexer))
-}
-
+// HelmChartStatusHandler is executed for every added or modified HelmChart. Should return the new status to be updated
 type HelmChartStatusHandler func(obj *v1.HelmChart, status v1.HelmChartStatus) (v1.HelmChartStatus, error)
 
+// HelmChartGeneratingHandler is the top-level handler that is executed for every HelmChart event. It extends HelmChartStatusHandler by a returning a slice of child objects to be passed to apply.Apply
 type HelmChartGeneratingHandler func(obj *v1.HelmChart, status v1.HelmChartStatus) ([]runtime.Object, v1.HelmChartStatus, error)
 
-func FromHelmChartHandlerToHandler(sync HelmChartHandler) generic.Handler {
-	return generic.FromObjectHandlerToHandler(generic.ObjectHandler[*v1.HelmChart](sync))
-}
-
+// RegisterHelmChartStatusHandler configures a HelmChartController to execute a HelmChartStatusHandler for every events observed.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterHelmChartStatusHandler(ctx context.Context, controller HelmChartController, condition condition.Cond, name string, handler HelmChartStatusHandler) {
 	statusHandler := &helmChartStatusHandler{
 		client:    controller,
 		condition: condition,
 		handler:   handler,
 	}
-	controller.AddGenericHandler(ctx, name, FromHelmChartHandlerToHandler(statusHandler.sync))
+	controller.AddGenericHandler(ctx, name, generic.FromObjectHandlerToHandler(statusHandler.sync))
 }
 
+// RegisterHelmChartGeneratingHandler configures a HelmChartController to execute a HelmChartGeneratingHandler for every events observed, passing the returned objects to the provided apply.Apply.
+// If a non-empty condition is provided, it will be updated in the status conditions for every handler execution
 func RegisterHelmChartGeneratingHandler(ctx context.Context, controller HelmChartController, apply apply.Apply,
 	condition condition.Cond, name string, handler HelmChartGeneratingHandler, opts *generic.GeneratingHandlerOptions) {
 	statusHandler := &helmChartGeneratingHandler{
@@ -179,6 +89,7 @@ type helmChartStatusHandler struct {
 	handler   HelmChartStatusHandler
 }
 
+// sync is executed on every resource addition or modification. Executes the configured handlers and sends the updated status to the Kubernetes API
 func (a *helmChartStatusHandler) sync(key string, obj *v1.HelmChart) (*v1.HelmChart, error) {
 	if obj == nil {
 		return obj, nil
@@ -224,8 +135,10 @@ type helmChartGeneratingHandler struct {
 	opts  generic.GeneratingHandlerOptions
 	gvk   schema.GroupVersionKind
 	name  string
+	seen  sync.Map
 }
 
+// Remove handles the observed deletion of a resource, cascade deleting every associated resource previously applied
 func (a *helmChartGeneratingHandler) Remove(key string, obj *v1.HelmChart) (*v1.HelmChart, error) {
 	if obj != nil {
 		return obj, nil
@@ -235,12 +148,17 @@ func (a *helmChartGeneratingHandler) Remove(key string, obj *v1.HelmChart) (*v1.
 	obj.Namespace, obj.Name = kv.RSplit(key, "/")
 	obj.SetGroupVersionKind(a.gvk)
 
+	if a.opts.UniqueApplyForResourceVersion {
+		a.seen.Delete(key)
+	}
+
 	return nil, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects()
 }
 
+// Handle executes the configured HelmChartGeneratingHandler and pass the resulting objects to apply.Apply, finally returning the new status of the resource
 func (a *helmChartGeneratingHandler) Handle(obj *v1.HelmChart, status v1.HelmChartStatus) (v1.HelmChartStatus, error) {
 	if !obj.DeletionTimestamp.IsZero() {
 		return status, nil
@@ -250,9 +168,41 @@ func (a *helmChartGeneratingHandler) Handle(obj *v1.HelmChart, status v1.HelmCha
 	if err != nil {
 		return newStatus, err
 	}
+	if !a.isNewResourceVersion(obj) {
+		return newStatus, nil
+	}
 
-	return newStatus, generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
+	err = generic.ConfigureApplyForObject(a.apply, obj, &a.opts).
 		WithOwner(obj).
 		WithSetID(a.name).
 		ApplyObjects(objs...)
+	if err != nil {
+		return newStatus, err
+	}
+	a.storeResourceVersion(obj)
+	return newStatus, nil
+}
+
+// isNewResourceVersion detects if a specific resource version was already successfully processed.
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *helmChartGeneratingHandler) isNewResourceVersion(obj *v1.HelmChart) bool {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return true
+	}
+
+	// Apply once per resource version
+	key := obj.Namespace + "/" + obj.Name
+	previous, ok := a.seen.Load(key)
+	return !ok || previous != obj.ResourceVersion
+}
+
+// storeResourceVersion keeps track of the latest resource version of an object for which Apply was executed
+// Only used if UniqueApplyForResourceVersion is set in generic.GeneratingHandlerOptions
+func (a *helmChartGeneratingHandler) storeResourceVersion(obj *v1.HelmChart) {
+	if !a.opts.UniqueApplyForResourceVersion {
+		return
+	}
+
+	key := obj.Namespace + "/" + obj.Name
+	a.seen.Store(key, obj.ResourceVersion)
 }

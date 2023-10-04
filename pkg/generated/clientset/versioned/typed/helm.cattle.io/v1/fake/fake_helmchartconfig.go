@@ -21,10 +21,9 @@ package fake
 import (
 	"context"
 
-	helmcattleiov1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -36,25 +35,25 @@ type FakeHelmChartConfigs struct {
 	ns   string
 }
 
-var helmchartconfigsResource = schema.GroupVersionResource{Group: "helm.cattle.io", Version: "v1", Resource: "helmchartconfigs"}
+var helmchartconfigsResource = v1.SchemeGroupVersion.WithResource("helmchartconfigs")
 
-var helmchartconfigsKind = schema.GroupVersionKind{Group: "helm.cattle.io", Version: "v1", Kind: "HelmChartConfig"}
+var helmchartconfigsKind = v1.SchemeGroupVersion.WithKind("HelmChartConfig")
 
 // Get takes name of the helmChartConfig, and returns the corresponding helmChartConfig object, and an error if there is any.
-func (c *FakeHelmChartConfigs) Get(ctx context.Context, name string, options v1.GetOptions) (result *helmcattleiov1.HelmChartConfig, err error) {
+func (c *FakeHelmChartConfigs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.HelmChartConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(helmchartconfigsResource, c.ns, name), &helmcattleiov1.HelmChartConfig{})
+		Invokes(testing.NewGetAction(helmchartconfigsResource, c.ns, name), &v1.HelmChartConfig{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*helmcattleiov1.HelmChartConfig), err
+	return obj.(*v1.HelmChartConfig), err
 }
 
 // List takes label and field selectors, and returns the list of HelmChartConfigs that match those selectors.
-func (c *FakeHelmChartConfigs) List(ctx context.Context, opts v1.ListOptions) (result *helmcattleiov1.HelmChartConfigList, err error) {
+func (c *FakeHelmChartConfigs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.HelmChartConfigList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(helmchartconfigsResource, helmchartconfigsKind, c.ns, opts), &helmcattleiov1.HelmChartConfigList{})
+		Invokes(testing.NewListAction(helmchartconfigsResource, helmchartconfigsKind, c.ns, opts), &v1.HelmChartConfigList{})
 
 	if obj == nil {
 		return nil, err
@@ -64,8 +63,8 @@ func (c *FakeHelmChartConfigs) List(ctx context.Context, opts v1.ListOptions) (r
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &helmcattleiov1.HelmChartConfigList{ListMeta: obj.(*helmcattleiov1.HelmChartConfigList).ListMeta}
-	for _, item := range obj.(*helmcattleiov1.HelmChartConfigList).Items {
+	list := &v1.HelmChartConfigList{ListMeta: obj.(*v1.HelmChartConfigList).ListMeta}
+	for _, item := range obj.(*v1.HelmChartConfigList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -74,57 +73,57 @@ func (c *FakeHelmChartConfigs) List(ctx context.Context, opts v1.ListOptions) (r
 }
 
 // Watch returns a watch.Interface that watches the requested helmChartConfigs.
-func (c *FakeHelmChartConfigs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeHelmChartConfigs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(helmchartconfigsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a helmChartConfig and creates it.  Returns the server's representation of the helmChartConfig, and an error, if there is any.
-func (c *FakeHelmChartConfigs) Create(ctx context.Context, helmChartConfig *helmcattleiov1.HelmChartConfig, opts v1.CreateOptions) (result *helmcattleiov1.HelmChartConfig, err error) {
+func (c *FakeHelmChartConfigs) Create(ctx context.Context, helmChartConfig *v1.HelmChartConfig, opts metav1.CreateOptions) (result *v1.HelmChartConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(helmchartconfigsResource, c.ns, helmChartConfig), &helmcattleiov1.HelmChartConfig{})
+		Invokes(testing.NewCreateAction(helmchartconfigsResource, c.ns, helmChartConfig), &v1.HelmChartConfig{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*helmcattleiov1.HelmChartConfig), err
+	return obj.(*v1.HelmChartConfig), err
 }
 
 // Update takes the representation of a helmChartConfig and updates it. Returns the server's representation of the helmChartConfig, and an error, if there is any.
-func (c *FakeHelmChartConfigs) Update(ctx context.Context, helmChartConfig *helmcattleiov1.HelmChartConfig, opts v1.UpdateOptions) (result *helmcattleiov1.HelmChartConfig, err error) {
+func (c *FakeHelmChartConfigs) Update(ctx context.Context, helmChartConfig *v1.HelmChartConfig, opts metav1.UpdateOptions) (result *v1.HelmChartConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(helmchartconfigsResource, c.ns, helmChartConfig), &helmcattleiov1.HelmChartConfig{})
+		Invokes(testing.NewUpdateAction(helmchartconfigsResource, c.ns, helmChartConfig), &v1.HelmChartConfig{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*helmcattleiov1.HelmChartConfig), err
+	return obj.(*v1.HelmChartConfig), err
 }
 
 // Delete takes name of the helmChartConfig and deletes it. Returns an error if one occurs.
-func (c *FakeHelmChartConfigs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
+func (c *FakeHelmChartConfigs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(helmchartconfigsResource, c.ns, name, opts), &helmcattleiov1.HelmChartConfig{})
+		Invokes(testing.NewDeleteActionWithOptions(helmchartconfigsResource, c.ns, name, opts), &v1.HelmChartConfig{})
 
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeHelmChartConfigs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+func (c *FakeHelmChartConfigs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(helmchartconfigsResource, c.ns, listOpts)
 
-	_, err := c.Fake.Invokes(action, &helmcattleiov1.HelmChartConfigList{})
+	_, err := c.Fake.Invokes(action, &v1.HelmChartConfigList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched helmChartConfig.
-func (c *FakeHelmChartConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *helmcattleiov1.HelmChartConfig, err error) {
+func (c *FakeHelmChartConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.HelmChartConfig, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(helmchartconfigsResource, c.ns, name, pt, data, subresources...), &helmcattleiov1.HelmChartConfig{})
+		Invokes(testing.NewPatchSubresourceAction(helmchartconfigsResource, c.ns, name, pt, data, subresources...), &v1.HelmChartConfig{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*helmcattleiov1.HelmChartConfig), err
+	return obj.(*v1.HelmChartConfig), err
 }
