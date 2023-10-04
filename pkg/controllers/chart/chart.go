@@ -13,12 +13,12 @@ import (
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/pkg/remove"
-	"github.com/rancher/wrangler/pkg/apply"
-	batchcontroller "github.com/rancher/wrangler/pkg/generated/controllers/batch/v1"
-	corecontroller "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
-	rbaccontroller "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
-	"github.com/rancher/wrangler/pkg/generic"
-	"github.com/rancher/wrangler/pkg/relatedresource"
+	"github.com/rancher/wrangler/v2/pkg/apply"
+	batchcontroller "github.com/rancher/wrangler/v2/pkg/generated/controllers/batch/v1"
+	corecontroller "github.com/rancher/wrangler/v2/pkg/generated/controllers/core/v1"
+	rbaccontroller "github.com/rancher/wrangler/v2/pkg/generated/controllers/rbac/v1"
+	"github.com/rancher/wrangler/v2/pkg/generic"
+	"github.com/rancher/wrangler/v2/pkg/relatedresource"
 	batch "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -154,7 +154,7 @@ func Register(
 			}
 			return c.shouldManage(helmChart)
 		},
-		helmcontroller.FromHelmChartHandlerToHandler(c.OnRemove),
+		generic.FromObjectHandlerToHandler(generic.ObjectHandler[*v1.HelmChart](c.OnRemove)),
 	)
 
 	relatedresource.Watch(ctx, "resolve-helm-chart-owned-resources",
