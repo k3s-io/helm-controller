@@ -23,7 +23,7 @@ import (
 	"time"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
-	"github.com/rancher/wrangler/pkg/generic"
+	"github.com/rancher/wrangler/v2/pkg/generic"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
