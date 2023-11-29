@@ -53,6 +53,14 @@ func TestDeleteJob(t *testing.T) {
 	assert.Equal("helm-delete-traefik", job.Name)
 }
 
+func TestInstallJobImage(t *testing.T) {
+	assert := assert.New(t)
+	chart := NewChart()
+	chart.Spec.JobImage = "custom-job-image"
+	job, _, _ := job(chart, "6443")
+	assert.Equal("custom-job-image", job.Spec.Template.Spec.Containers[0].Image)
+}
+
 func TestInstallArgs(t *testing.T) {
 	assert := assert.New(t)
 	stringArgs := strings.Join(args(NewChart()), " ")
