@@ -75,6 +75,7 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 	chart.Register(ctx,
 		systemNamespace,
 		controllerName,
+		opts.JobClusterRole,
 		"6443",
 		appCtx.K8s,
 		appCtx.Apply,
@@ -91,6 +92,7 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		appCtx.Core.Secret())
 
 	klog.Infof("Starting helm controller with %d threads", opts.Threadiness)
+	klog.Infof("Using cluster role '%s' for jobs managing helm charts", opts.JobClusterRole)
 
 	if len(systemNamespace) == 0 {
 		klog.Info("Starting helm controller with no namespace")

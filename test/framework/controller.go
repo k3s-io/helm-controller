@@ -22,6 +22,11 @@ func (f *Framework) setupController(ctx context.Context) error {
 		return err
 	}
 
+	_, err = f.ClientSet.RbacV1().ClusterRoles().Create(ctx, f.getCr(), metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
 	_, err = f.ClientSet.RbacV1().ClusterRoleBindings().Create(ctx, f.getCrb(), metav1.CreateOptions{})
 	if err != nil {
 		return err
@@ -94,7 +99,10 @@ func (f *Framework) getDeployment() *appsv1.Deployment {
 							Name:    f.Name,
 							Image:   getImage(),
 							Command: []string{"helm-controller"},
-							Args:    []string{"--namespace", "helm-controller"},
+							Args: []string{
+								"--namespace", "helm-controller",
+								"--job-cluster-role", f.Name,
+							},
 						},
 					},
 				},
@@ -110,6 +118,25 @@ func getImage() string {
 	return "rancher/helm-controller:latest"
 }
 
+func (f *Framework) getCr() *v1.ClusterRole {
+	return &v1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: f.Name,
+		},
+		Rules: []v1.PolicyRule{
+			{
+				APIGroups: []string{"*"},
+				Resources: []string{"*"},
+				Verbs:     []string{"*"},
+			},
+			{
+				NonResourceURLs: []string{"*"},
+				Verbs:           []string{"*"},
+			},
+		},
+	}
+}
+
 func (f *Framework) getCrb() *v1.ClusterRoleBinding {
 	return &v1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
@@ -118,7 +145,7 @@ func (f *Framework) getCrb() *v1.ClusterRoleBinding {
 		RoleRef: v1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     "cluster-admin",
+			Name:     f.Name,
 		},
 		Subjects: []v1.Subject{
 			{

@@ -32,6 +32,7 @@ type HelmController struct {
 	Threads        int    `short:"t" usage:"Threadiness level to set. May be set via THREADS env var." default:"2" env:"THREADS"`
 	ControllerName string `usage:"Unique name to identify this controller that is added to all HelmCharts tracked by this controller. May be set via CONTROLLER_NAME env var." default:"helm-controller" env:"CONTROLLER_NAME"`
 	NodeName       string `usage:"Name of the node this controller is running on. May be set via NODE_NAME env var." env:"NODE_NAME"`
+	JobClusterRole string `usage:"Name of the cluster role to use for jobs created to manage helm charts. May be set via JOB_CLUSTER_ROLE env var." default:"cluster-admin" env:"JOB_CLUSTER_ROLE"`
 	PprofPort      int    `usage:"Port to publish HTTP server runtime profiling data in the format expected by the pprof visualization tool. Only enabled if in debug mode." default:"6060"`
 }
 
@@ -60,8 +61,9 @@ func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	opts := common.Options{
-		Threadiness: a.Threads,
-		NodeName:    a.NodeName,
+		Threadiness:    a.Threads,
+		NodeName:       a.NodeName,
+		JobClusterRole: a.JobClusterRole,
 	}
 
 	if err := opts.Validate(); err != nil {

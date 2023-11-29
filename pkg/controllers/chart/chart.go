@@ -60,6 +60,7 @@ var (
 
 type Controller struct {
 	systemNamespace string
+	jobClusterRole  string
 	managedBy       string
 	helms           helmcontroller.HelmChartController
 	helmCache       helmcontroller.HelmChartCache
@@ -72,8 +73,12 @@ type Controller struct {
 	apiServerPort   string
 }
 
-func Register(ctx context.Context,
-	systemNamespace, managedBy, apiServerPort string,
+func Register(
+	ctx context.Context,
+	systemNamespace,
+	managedBy,
+	jobClusterRole string,
+	apiServerPort string,
 	k8s kubernetes.Interface,
 	apply apply.Apply,
 	recorder record.EventRecorder,
@@ -90,6 +95,7 @@ func Register(ctx context.Context,
 
 	c := &Controller{
 		systemNamespace: systemNamespace,
+		jobClusterRole:  jobClusterRole,
 		managedBy:       managedBy,
 		helms:           helms,
 		helmCache:       helmCache,
@@ -346,7 +352,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 		valuesSecret,
 		contentConfigMap,
 		serviceAccount(chart),
-		roleBinding(chart),
+		roleBinding(chart, c.jobClusterRole),
 	}, nil
 }
 
@@ -537,7 +543,7 @@ func valuesSecretAddConfig(secret *corev1.Secret, config *v1.HelmChartConfig) {
 	}
 }
 
-func roleBinding(chart *v1.HelmChart) *rbac.ClusterRoleBinding {
+func roleBinding(chart *v1.HelmChart, jobClusterRole string) *rbac.ClusterRoleBinding {
 	return &rbac.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "rbac.authorization.k8s.io/v1",
@@ -549,7 +555,7 @@ func roleBinding(chart *v1.HelmChart) *rbac.ClusterRoleBinding {
 		RoleRef: rbac.RoleRef{
 			Kind:     "ClusterRole",
 			APIGroup: "rbac.authorization.k8s.io",
-			Name:     "cluster-admin",
+			Name:     jobClusterRole,
 		},
 		Subjects: []rbac.Subject{
 			{
