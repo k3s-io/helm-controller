@@ -7,6 +7,11 @@ K3S_VERSION=v1.25.9-k3s1
 
 cd $(dirname $0)/..
 
+if [[ ! -f 'bin/helm-controller-image.txt' ]]; then
+    echo "Run 'make package' first."
+    exit 1
+fi
+
 setup_k8s(){
     # Using k3s with embedded helm controller disabled
     docker pull rancher/k3s:$K3S_VERSION
