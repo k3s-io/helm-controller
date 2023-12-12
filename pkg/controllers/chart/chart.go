@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -51,11 +52,26 @@ const (
 )
 
 var (
-	commaRE              = regexp.MustCompile(`\\*,`)
-	deletePolicy         = metav1.DeletePropagationForeground
-	DefaultJobImage      = "rancher/klipper-helm:v0.8.2-build20230815"
-	DefaultFailurePolicy = FailurePolicyReinstall
-	defaultBackOffLimit  = pointer.Int32(1000)
+	commaRE                   = regexp.MustCompile(`\\*,`)
+	deletePolicy              = metav1.DeletePropagationForeground
+	DefaultJobImage           = "rancher/klipper-helm:v0.8.2-build20230815"
+	DefaultFailurePolicy      = FailurePolicyReinstall
+	defaultBackOffLimit       = pointer.Int32(1000)
+	defaultPodSecurityContext = &corev1.PodSecurityContext{
+		RunAsNonRoot: pointer.BoolPtr(true),
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: "RuntimeDefault",
+		},
+	}
+	defaultSecurityContext = &corev1.SecurityContext{
+		AllowPrivilegeEscalation: pointer.BoolPtr(false),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{
+				"ALL",
+			},
+		},
+		ReadOnlyRootFilesystem: pointer.BoolPtr(true),
+	}
 )
 
 type Controller struct {
@@ -377,6 +393,9 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 		chartName = chart.Name + "/" + chart.Spec.Chart
 	}
 
+	podSecurityContext := deepCopyStruct(defaultPodSecurityContext).(*corev1.PodSecurityContext)
+	securityContext := deepCopyStruct(defaultSecurityContext).(*corev1.SecurityContext)
+
 	job := &batch.Job{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "batch/v1",
@@ -443,9 +462,51 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 									Value: fmt.Sprintf("%t", chart.Spec.AuthPassCredentials),
 								},
 							},
+							SecurityContext: securityContext,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "klipper-helm",
+									MountPath: "/home/klipper-helm/.helm",
+								},
+								{
+									Name:      "klipper-cache",
+									MountPath: "/home/klipper-helm/.cache",
+								},
+								{
+									Name:      "klipper-config",
+									MountPath: "/home/klipper-helm/.config",
+								},
+							},
 						},
 					},
 					ServiceAccountName: fmt.Sprintf("helm-%s", chart.Name),
+					SecurityContext:    podSecurityContext,
+					Volumes: []corev1.Volume{
+						{
+							Name: "klipper-helm",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium: "Memory",
+								},
+							},
+						},
+						{
+							Name: "klipper-cache",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium: "Memory",
+								},
+							},
+						},
+						{
+							Name: "klipper-config",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium: "Memory",
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -507,6 +568,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 	setAuthSecret(job, chart)
 	setDockerRegistrySecret(job, chart)
 	setRepoCAConfigMap(job, chart)
+	setSecurityContext(job, chart)
 	valuesSecret := setValuesSecret(job, chart)
 	contentConfigMap := setContentConfigMap(job, chart)
 
@@ -830,4 +892,67 @@ func hashObjects(job *batch.Job, objs ...metav1.Object) {
 
 func setBackOffLimit(job *batch.Job, backOffLimit *int32) {
 	job.Spec.BackoffLimit = backOffLimit
+}
+
+func deepCopyStruct(source interface{}) interface{} {
+	sourceVal := reflect.ValueOf(source)
+
+	if sourceVal.Kind() != reflect.Ptr || sourceVal.IsNil() {
+		return nil
+	}
+
+	sourceElem := sourceVal.Elem()
+	if sourceElem.Kind() != reflect.Struct {
+		return nil
+	}
+
+	newStruct := reflect.New(sourceElem.Type()).Elem()
+
+	for i := 0; i < sourceElem.NumField(); i++ {
+		field := sourceElem.Field(i)
+		if field.Kind() == reflect.Ptr && !field.IsNil() && field.Elem().Kind() == reflect.Struct {
+			// If the field is a pointer to a struct, recursively deep copy it
+			copyOfField := deepCopyStruct(field.Interface())
+			newStruct.Field(i).Set(reflect.ValueOf(copyOfField))
+		} else {
+			newStruct.Field(i).Set(field)
+		}
+	}
+
+	return newStruct.Addr().Interface()
+}
+
+func deepMergeStruct(target, source interface{}) {
+	targetVal := reflect.ValueOf(target).Elem()
+	sourceVal := reflect.ValueOf(source).Elem()
+
+	for i := 0; i < targetVal.NumField(); i++ {
+		targetField := targetVal.Field(i)
+		sourceField := sourceVal.Field(i)
+
+		if !sourceField.IsNil() {
+			if targetField.IsNil() {
+				targetField.Set(sourceField)
+			} else {
+				// If fields are pointers and Structs, merge recursively
+				if targetField.Kind() == reflect.Ptr && targetField.Elem().Kind() == reflect.Struct &&
+					sourceField.Kind() == reflect.Ptr && sourceField.Elem().Kind() == reflect.Struct {
+					deepMergeStruct(targetField.Interface(), sourceField.Interface())
+				} else {
+					// Otherwise, overwrite target field with source field value
+					targetField.Set(sourceField)
+				}
+			}
+		}
+	}
+}
+
+func setSecurityContext(job *batch.Job, chart *v1.HelmChart) {
+	if chart.Spec.PodSecurityContext != nil {
+		deepMergeStruct(job.Spec.Template.Spec.SecurityContext, chart.Spec.PodSecurityContext)
+	}
+
+	if chart.Spec.SecurityContext != nil {
+		deepMergeStruct(job.Spec.Template.Spec.Containers[0].SecurityContext, chart.Spec.SecurityContext)
+	}
 }
