@@ -1,6 +1,8 @@
 .DS_Store
 /.dapper
 /.idea
+/Dockerfile.dapper*
+!/Dockerfile.dapper
 /bin
 /dist
 helm-controller

@@ -4,8 +4,10 @@ import "fmt"
 
 // Options defines options that can be set on initializing the Helm Controller
 type Options struct {
-	Threadiness int
-	NodeName    string
+	Threadiness     int
+	NodeName        string
+	JobClusterRole  string
+	DefaultJobImage string
 }
 
 func (opts Options) Validate() error {

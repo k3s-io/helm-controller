@@ -8,6 +8,11 @@ SUFFIX="-${ARCH}"
 
 cd $(dirname $0)/..
 
+if [[ ! -f 'bin/helm-controller' ]]; then
+    echo "Run 'make build' first."
+    exit 1
+fi
+
 TAG=${TAG:-${VERSION}${SUFFIX}}
 REPO=${REPO:-rancher}
 

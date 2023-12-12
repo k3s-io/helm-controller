@@ -36,6 +36,10 @@
 			{
 				"linters": "revive",
 				"text": "unused-parameter"
+			},
+			{
+				"path": "_test\\.go$",
+				"text": "dot-imports: should not use dot imports"
 			}
 		]
 	}
