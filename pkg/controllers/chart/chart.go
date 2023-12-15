@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -895,37 +894,12 @@ func setBackOffLimit(job *batch.Job, backOffLimit *int32) {
 	job.Spec.BackoffLimit = backOffLimit
 }
 
-func deepMergeStruct(target, source interface{}) {
-	targetVal := reflect.ValueOf(target).Elem()
-	sourceVal := reflect.ValueOf(source).Elem()
-
-	for i := 0; i < targetVal.NumField(); i++ {
-		targetField := targetVal.Field(i)
-		sourceField := sourceVal.Field(i)
-
-		if !sourceField.IsNil() {
-			if targetField.IsNil() {
-				targetField.Set(sourceField)
-			} else {
-				// If fields are pointers and Structs, merge recursively
-				if targetField.Kind() == reflect.Ptr && targetField.Elem().Kind() == reflect.Struct &&
-					sourceField.Kind() == reflect.Ptr && sourceField.Elem().Kind() == reflect.Struct {
-					deepMergeStruct(targetField.Interface(), sourceField.Interface())
-				} else {
-					// Otherwise, overwrite target field with source field value
-					targetField.Set(sourceField)
-				}
-			}
-		}
-	}
-}
-
 func setSecurityContext(job *batch.Job, chart *v1.HelmChart) {
 	if chart.Spec.PodSecurityContext != nil {
-		deepMergeStruct(job.Spec.Template.Spec.SecurityContext, chart.Spec.PodSecurityContext)
+		job.Spec.Template.Spec.SecurityContext = chart.Spec.PodSecurityContext
 	}
 
 	if chart.Spec.SecurityContext != nil {
-		deepMergeStruct(job.Spec.Template.Spec.Containers[0].SecurityContext, chart.Spec.SecurityContext)
+		job.Spec.Template.Spec.Containers[0].SecurityContext = chart.Spec.SecurityContext
 	}
 }
