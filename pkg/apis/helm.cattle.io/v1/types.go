@@ -19,28 +19,29 @@ type HelmChart struct {
 }
 
 type HelmChartSpec struct {
-	TargetNamespace    string                        `json:"targetNamespace,omitempty"`
-	CreateNamespace    bool                          `json:"createNamespace,omitempty"`
-	Chart              string                        `json:"chart,omitempty"`
-	Version            string                        `json:"version,omitempty"`
-	Repo               string                        `json:"repo,omitempty"`
-	RepoCA             string                        `json:"repoCA,omitempty"`
-	RepoCAConfigMap    *corev1.LocalObjectReference  `json:"repoCAConfigMap,omitempty"`
-	Set                map[string]intstr.IntOrString `json:"set,omitempty"`
-	ValuesContent      string                        `json:"valuesContent,omitempty"`
-	HelmVersion        string                        `json:"helmVersion,omitempty"`
-	Bootstrap          bool                          `json:"bootstrap,omitempty"`
-	ChartContent       string                        `json:"chartContent,omitempty"`
-	JobImage           string                        `json:"jobImage,omitempty"`
-	BackOffLimit       *int32                        `json:"backOffLimit,omitempty"`
-	Timeout            *metav1.Duration              `json:"timeout,omitempty"`
-	FailurePolicy      string                        `json:"failurePolicy,omitempty"`
-	AuthSecret         *corev1.LocalObjectReference  `json:"authSecret,omitempty"`
-	PodSecurityContext *corev1.PodSecurityContext    `json:"podSecurityContext,omitempty"`
-	SecurityContext    *corev1.SecurityContext       `json:"securityContext,omitempty"`
+	TargetNamespace string                        `json:"targetNamespace,omitempty"`
+	CreateNamespace bool                          `json:"createNamespace,omitempty"`
+	Chart           string                        `json:"chart,omitempty"`
+	Version         string                        `json:"version,omitempty"`
+	Repo            string                        `json:"repo,omitempty"`
+	RepoCA          string                        `json:"repoCA,omitempty"`
+	RepoCAConfigMap *corev1.LocalObjectReference  `json:"repoCAConfigMap,omitempty"`
+	Set             map[string]intstr.IntOrString `json:"set,omitempty"`
+	ValuesContent   string                        `json:"valuesContent,omitempty"`
+	HelmVersion     string                        `json:"helmVersion,omitempty"`
+	Bootstrap       bool                          `json:"bootstrap,omitempty"`
+	ChartContent    string                        `json:"chartContent,omitempty"`
+	JobImage        string                        `json:"jobImage,omitempty"`
+	BackOffLimit    *int32                        `json:"backOffLimit,omitempty"`
+	Timeout         *metav1.Duration              `json:"timeout,omitempty"`
+	FailurePolicy   string                        `json:"failurePolicy,omitempty"`
+	AuthSecret      *corev1.LocalObjectReference  `json:"authSecret,omitempty"`
 
 	AuthPassCredentials  bool                         `json:"authPassCredentials,omitempty"`
 	DockerRegistrySecret *corev1.LocalObjectReference `json:"dockerRegistrySecret,omitempty"`
+
+	PodSecurityContext *corev1.PodSecurityContext `json:"podSecurityContext,omitempty"`
+	SecurityContext    *corev1.SecurityContext    `json:"securityContext,omitempty"`
 }
 
 type HelmChartStatus struct {

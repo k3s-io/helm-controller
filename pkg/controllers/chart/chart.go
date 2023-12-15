@@ -52,11 +52,12 @@ const (
 )
 
 var (
-	commaRE                   = regexp.MustCompile(`\\*,`)
-	deletePolicy              = metav1.DeletePropagationForeground
-	DefaultJobImage           = "rancher/klipper-helm:v0.8.2-build20230815"
-	DefaultFailurePolicy      = FailurePolicyReinstall
-	defaultBackOffLimit       = pointer.Int32(1000)
+	commaRE              = regexp.MustCompile(`\\*,`)
+	deletePolicy         = metav1.DeletePropagationForeground
+	DefaultJobImage      = "rancher/klipper-helm:v0.8.2-build20230815"
+	DefaultFailurePolicy = FailurePolicyReinstall
+	defaultBackOffLimit  = pointer.Int32(1000)
+
 	defaultPodSecurityContext = &corev1.PodSecurityContext{
 		RunAsNonRoot: pointer.BoolPtr(true),
 		SeccompProfile: &corev1.SeccompProfile{
@@ -393,8 +394,8 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 		chartName = chart.Name + "/" + chart.Spec.Chart
 	}
 
-	podSecurityContext := deepCopyStruct(defaultPodSecurityContext).(*corev1.PodSecurityContext)
-	securityContext := deepCopyStruct(defaultSecurityContext).(*corev1.SecurityContext)
+	podSecurityContext := defaultPodSecurityContext.DeepCopy()
+	securityContext := defaultSecurityContext.DeepCopy()
 
 	job := &batch.Job{
 		TypeMeta: metav1.TypeMeta{
@@ -892,34 +893,6 @@ func hashObjects(job *batch.Job, objs ...metav1.Object) {
 
 func setBackOffLimit(job *batch.Job, backOffLimit *int32) {
 	job.Spec.BackoffLimit = backOffLimit
-}
-
-func deepCopyStruct(source interface{}) interface{} {
-	sourceVal := reflect.ValueOf(source)
-
-	if sourceVal.Kind() != reflect.Ptr || sourceVal.IsNil() {
-		return nil
-	}
-
-	sourceElem := sourceVal.Elem()
-	if sourceElem.Kind() != reflect.Struct {
-		return nil
-	}
-
-	newStruct := reflect.New(sourceElem.Type()).Elem()
-
-	for i := 0; i < sourceElem.NumField(); i++ {
-		field := sourceElem.Field(i)
-		if field.Kind() == reflect.Ptr && !field.IsNil() && field.Elem().Kind() == reflect.Struct {
-			// If the field is a pointer to a struct, recursively deep copy it
-			copyOfField := deepCopyStruct(field.Interface())
-			newStruct.Field(i).Set(reflect.ValueOf(copyOfField))
-		} else {
-			newStruct.Field(i).Set(field)
-		}
-	}
-
-	return newStruct.Addr().Interface()
 }
 
 func deepMergeStruct(target, source interface{}) {
