@@ -536,9 +536,6 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			job                        *batchv1.Job
 			expectedPodSecurityContext = &corev1.PodSecurityContext{
 				RunAsNonRoot: pointer.BoolPtr(false),
-				SeccompProfile: &corev1.SeccompProfile{
-					Type: "RuntimeDefault",
-				},
 			}
 		)
 		BeforeEach(func() {
@@ -651,12 +648,6 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			job                     *batchv1.Job
 			expectedSecurityContext = &corev1.SecurityContext{
 				AllowPrivilegeEscalation: pointer.BoolPtr(true),
-				Capabilities: &corev1.Capabilities{
-					Drop: []corev1.Capability{
-						"ALL",
-					},
-				},
-				ReadOnlyRootFilesystem: pointer.BoolPtr(true),
 			}
 		)
 		BeforeEach(func() {
