@@ -39,6 +39,9 @@ type HelmChartSpec struct {
 
 	AuthPassCredentials  bool                         `json:"authPassCredentials,omitempty"`
 	DockerRegistrySecret *corev1.LocalObjectReference `json:"dockerRegistrySecret,omitempty"`
+
+	PodSecurityContext *corev1.PodSecurityContext `json:"podSecurityContext,omitempty"`
+	SecurityContext    *corev1.SecurityContext    `json:"securityContext,omitempty"`
 }
 
 type HelmChartStatus struct {

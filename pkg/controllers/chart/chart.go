@@ -56,6 +56,22 @@ var (
 	DefaultJobImage      = "rancher/klipper-helm:v0.8.2-build20230815"
 	DefaultFailurePolicy = FailurePolicyReinstall
 	defaultBackOffLimit  = pointer.Int32(1000)
+
+	defaultPodSecurityContext = &corev1.PodSecurityContext{
+		RunAsNonRoot: pointer.BoolPtr(true),
+		SeccompProfile: &corev1.SeccompProfile{
+			Type: "RuntimeDefault",
+		},
+	}
+	defaultSecurityContext = &corev1.SecurityContext{
+		AllowPrivilegeEscalation: pointer.BoolPtr(false),
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{
+				"ALL",
+			},
+		},
+		ReadOnlyRootFilesystem: pointer.BoolPtr(true),
+	}
 )
 
 type Controller struct {
@@ -377,6 +393,9 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 		chartName = chart.Name + "/" + chart.Spec.Chart
 	}
 
+	podSecurityContext := defaultPodSecurityContext.DeepCopy()
+	securityContext := defaultSecurityContext.DeepCopy()
+
 	job := &batch.Job{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "batch/v1",
@@ -443,9 +462,51 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 									Value: fmt.Sprintf("%t", chart.Spec.AuthPassCredentials),
 								},
 							},
+							SecurityContext: securityContext,
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "klipper-helm",
+									MountPath: "/home/klipper-helm/.helm",
+								},
+								{
+									Name:      "klipper-cache",
+									MountPath: "/home/klipper-helm/.cache",
+								},
+								{
+									Name:      "klipper-config",
+									MountPath: "/home/klipper-helm/.config",
+								},
+							},
 						},
 					},
 					ServiceAccountName: fmt.Sprintf("helm-%s", chart.Name),
+					SecurityContext:    podSecurityContext,
+					Volumes: []corev1.Volume{
+						{
+							Name: "klipper-helm",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium: "Memory",
+								},
+							},
+						},
+						{
+							Name: "klipper-cache",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium: "Memory",
+								},
+							},
+						},
+						{
+							Name: "klipper-config",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium: "Memory",
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -507,6 +568,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 	setAuthSecret(job, chart)
 	setDockerRegistrySecret(job, chart)
 	setRepoCAConfigMap(job, chart)
+	setSecurityContext(job, chart)
 	valuesSecret := setValuesSecret(job, chart)
 	contentConfigMap := setContentConfigMap(job, chart)
 
@@ -830,4 +892,14 @@ func hashObjects(job *batch.Job, objs ...metav1.Object) {
 
 func setBackOffLimit(job *batch.Job, backOffLimit *int32) {
 	job.Spec.BackoffLimit = backOffLimit
+}
+
+func setSecurityContext(job *batch.Job, chart *v1.HelmChart) {
+	if chart.Spec.PodSecurityContext != nil {
+		job.Spec.Template.Spec.SecurityContext = chart.Spec.PodSecurityContext
+	}
+
+	if chart.Spec.SecurityContext != nil {
+		job.Spec.Template.Spec.Containers[0].SecurityContext = chart.Spec.SecurityContext
+	}
 }

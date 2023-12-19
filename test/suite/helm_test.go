@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 )
 
 var _ = Describe("Helm Tests", Ordered, func() {
@@ -362,7 +363,6 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
 				return err != nil && apierrors.IsNotFound(err)
 			}, 120*time.Second, 5*time.Second).Should(BeTrue())
-
 		})
 	})
 
@@ -474,7 +474,6 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				return err != nil && apierrors.IsNotFound(err)
 			}, 120*time.Second, 5*time.Second).Should(BeTrue())
 		})
-
 	})
 
 	Context("When a no backoffLimit is specified", func() {
@@ -528,6 +527,232 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				return err != nil && apierrors.IsNotFound(err)
 			}, 120*time.Second, 5*time.Second).Should(BeTrue())
 		})
+	})
 
+	Context("When a custom podSecurityContext is specified", func() {
+		var (
+			err                        error
+			chart                      *v1.HelmChart
+			job                        *batchv1.Job
+			expectedPodSecurityContext = &corev1.PodSecurityContext{
+				RunAsNonRoot: pointer.BoolPtr(false),
+			}
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-custom-podsecuritycontext",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.PodSecurityContext = &corev1.PodSecurityContext{
+				RunAsNonRoot: pointer.BoolPtr(false),
+			}
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should have correct pod securityContext", func() {
+			Expect(*job.Spec.Template.Spec.SecurityContext).To(Equal(*expectedPodSecurityContext))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+	})
+
+	Context("When a no podSecurityContext is specified", func() {
+		var (
+			err                       error
+			chart                     *v1.HelmChart
+			job                       *batchv1.Job
+			defaultPodSecurityContext = &corev1.PodSecurityContext{
+				RunAsNonRoot: pointer.BoolPtr(true),
+				SeccompProfile: &corev1.SeccompProfile{
+					Type: "RuntimeDefault",
+				},
+			}
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-default-podsecuritycontext",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should have correct pod securityContext", func() {
+			Expect(*job.Spec.Template.Spec.SecurityContext).To(Equal(*defaultPodSecurityContext))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+	})
+
+	Context("When a custom securityContext is specified", func() {
+		var (
+			err                     error
+			chart                   *v1.HelmChart
+			job                     *batchv1.Job
+			expectedSecurityContext = &corev1.SecurityContext{
+				AllowPrivilegeEscalation: pointer.BoolPtr(true),
+			}
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-custom-securitycontext",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.SecurityContext = &corev1.SecurityContext{
+				AllowPrivilegeEscalation: pointer.BoolPtr(true),
+			}
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should have correct container securityContext", func() {
+			Expect(*job.Spec.Template.Spec.Containers[0].SecurityContext).To(Equal(*expectedSecurityContext))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+	})
+
+	Context("When a no securityContext is specified", func() {
+		var (
+			err                    error
+			chart                  *v1.HelmChart
+			job                    *batchv1.Job
+			defaultSecurityContext = &corev1.SecurityContext{
+				AllowPrivilegeEscalation: pointer.BoolPtr(false),
+				Capabilities: &corev1.Capabilities{
+					Drop: []corev1.Capability{
+						"ALL",
+					},
+				},
+				ReadOnlyRootFilesystem: pointer.BoolPtr(true),
+			}
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-default-securitycontext",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should have correct container securityContext", func() {
+			Expect(*job.Spec.Template.Spec.Containers[0].SecurityContext).To(Equal(*defaultSecurityContext))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
 	})
 })
