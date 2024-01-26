@@ -74,6 +74,35 @@ var (
 	}
 )
 
+var (
+	bootstrapTolerations = []corev1.Toleration{
+		{
+			Key:    corev1.TaintNodeNotReady,
+			Effect: corev1.TaintEffectNoSchedule,
+		},
+		{
+			Key:      TaintExternalCloudProvider,
+			Operator: corev1.TolerationOpEqual,
+			Value:    "true",
+			Effect:   corev1.TaintEffectNoSchedule,
+		},
+		{
+			Key:      "CriticalAddonsOnly",
+			Operator: corev1.TolerationOpExists,
+		},
+		{
+			Key:      LabelNodeRolePrefix + LabelEtcdSuffix,
+			Operator: corev1.TolerationOpExists,
+			Effect:   corev1.TaintEffectNoExecute,
+		},
+		{
+			Key:      LabelNodeRolePrefix + LabelControlPlaneSuffix,
+			Operator: corev1.TolerationOpExists,
+			Effect:   corev1.TaintEffectNoSchedule,
+		},
+	}
+)
+
 type Controller struct {
 	systemNamespace string
 	jobClusterRole  string
@@ -525,32 +554,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 	if chart.Spec.Bootstrap {
 		job.Spec.Template.Spec.NodeSelector[LabelNodeRolePrefix+LabelControlPlaneSuffix] = "true"
 		job.Spec.Template.Spec.HostNetwork = true
-		job.Spec.Template.Spec.Tolerations = []corev1.Toleration{
-			{
-				Key:    corev1.TaintNodeNotReady,
-				Effect: corev1.TaintEffectNoSchedule,
-			},
-			{
-				Key:      TaintExternalCloudProvider,
-				Operator: corev1.TolerationOpEqual,
-				Value:    "true",
-				Effect:   corev1.TaintEffectNoSchedule,
-			},
-			{
-				Key:      "CriticalAddonsOnly",
-				Operator: corev1.TolerationOpExists,
-			},
-			{
-				Key:      LabelNodeRolePrefix + LabelEtcdSuffix,
-				Operator: corev1.TolerationOpExists,
-				Effect:   corev1.TaintEffectNoExecute,
-			},
-			{
-				Key:      LabelNodeRolePrefix + LabelControlPlaneSuffix,
-				Operator: corev1.TolerationOpExists,
-				Effect:   corev1.TaintEffectNoSchedule,
-			},
-		}
+		job.Spec.Template.Spec.Tolerations = bootstrapTolerations
 		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, []corev1.EnvVar{
 			{
 				Name:  "KUBERNETES_SERVICE_HOST",
@@ -563,6 +567,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 				Value: "true"},
 		}...)
 	}
+	job.Spec.Template.Spec.Tolerations = append(job.Spec.Template.Spec.Tolerations, chart.Spec.Tolerations...)
 
 	setProxyEnv(job)
 	setAuthSecret(job, chart)

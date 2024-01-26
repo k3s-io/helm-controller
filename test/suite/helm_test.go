@@ -18,6 +18,33 @@ import (
 	"k8s.io/utils/pointer"
 )
 
+var bootstrapTolerations = &[]corev1.Toleration{
+	{
+		Key:    "node.kubernetes.io/not-ready",
+		Effect: "NoSchedule",
+	},
+	{
+		Key:      "node.cloudprovider.kubernetes.io/uninitialized",
+		Operator: "Equal",
+		Value:    "true",
+		Effect:   "NoSchedule",
+	},
+	{
+		Key:      "CriticalAddonsOnly",
+		Operator: "Exists",
+	},
+	{
+		Key:      "node-role.kubernetes.io/etcd",
+		Operator: "Exists",
+		Effect:   "NoExecute",
+	},
+	{
+		Key:      "node-role.kubernetes.io/control-plane",
+		Operator: "Exists",
+		Effect:   "NoSchedule",
+	},
+}
+
 var _ = Describe("Helm Tests", Ordered, func() {
 	framework, _ := framework.New()
 
@@ -755,4 +782,230 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			}, 120*time.Second, 5*time.Second).Should(BeTrue())
 		})
 	})
+
+	Context("When no tolerations are specified (non-boostrap)", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+			job   *batchv1.Job
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-no-tolerations",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		FIt("Should have no tolerations set", func() {
+			Expect(job.Spec.Template.Spec.Tolerations).To(BeEmpty())
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+	})
+
+	Context("When custom tolerations are specified (non-boostrap)", func() {
+		var (
+			err         error
+			chart       *v1.HelmChart
+			job         *batchv1.Job
+			tolerations = &[]corev1.Toleration{
+				{
+					Key:    "test-1",
+					Effect: corev1.TaintEffectNoSchedule,
+				},
+				{
+					Key:    "test-2",
+					Effect: corev1.TaintEffectNoExecute,
+				},
+			}
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-custom-tolerations",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.Tolerations = *tolerations
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		FIt("Should have tolerations set", func() {
+			Expect(job.Spec.Template.Spec.Tolerations).To(Equal(*tolerations))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+	})
+
+	Context("When no tolerations are specified (boostrap)", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+			job   *batchv1.Job
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-bootstrap-default-tolerations",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.Bootstrap = true
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		FIt("Should have default tolerations set", func() {
+			Expect(job.Spec.Template.Spec.Tolerations).To(Equal(*bootstrapTolerations))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+	})
+
+	Context("When custom tolerations are specified (boostrap)", func() {
+		var (
+			err             error
+			chart           *v1.HelmChart
+			job             *batchv1.Job
+			specTolerations = &[]corev1.Toleration{
+				{
+					Key:    "test-1",
+					Effect: corev1.TaintEffectNoSchedule,
+				},
+				{
+					Key:    "test-2",
+					Effect: corev1.TaintEffectNoExecute,
+				},
+			}
+			finalTolerations = append(*bootstrapTolerations, *specTolerations...)
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-bootstrap-custom-tolerations",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.Tolerations = *specTolerations
+			chart.Spec.Bootstrap = true
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			labelSelector := labels.SelectorFromSet(labels.Set{
+				"owner": "helm",
+				"name":  chart.Name,
+			})
+			_, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		FIt("Should have tolerations set", func() {
+			Expect(job.Spec.Template.Spec.Tolerations).To(Equal(finalTolerations))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+	})
+
 })
