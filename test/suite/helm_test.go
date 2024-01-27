@@ -819,7 +819,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			job, err = framework.GetJob(chart)
 			Expect(err).ToNot(HaveOccurred())
 		})
-		FIt("Should have no tolerations set", func() {
+		It("Should have no tolerations set", func() {
 			Expect(job.Spec.Template.Spec.Tolerations).To(BeEmpty())
 		})
 		AfterEach(func() {
@@ -880,7 +880,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			job, err = framework.GetJob(chart)
 			Expect(err).ToNot(HaveOccurred())
 		})
-		FIt("Should have tolerations set", func() {
+		It("Should have tolerations set", func() {
 			Expect(job.Spec.Template.Spec.Tolerations).To(Equal(*tolerations))
 		})
 		AfterEach(func() {
@@ -931,7 +931,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			job, err = framework.GetJob(chart)
 			Expect(err).ToNot(HaveOccurred())
 		})
-		FIt("Should have default tolerations set", func() {
+		It("Should have default tolerations set", func() {
 			Expect(job.Spec.Template.Spec.Tolerations).To(Equal(*bootstrapTolerations))
 		})
 		AfterEach(func() {
@@ -994,7 +994,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			job, err = framework.GetJob(chart)
 			Expect(err).ToNot(HaveOccurred())
 		})
-		FIt("Should have tolerations set", func() {
+		It("Should have tolerations set", func() {
 			Expect(job.Spec.Template.Spec.Tolerations).To(Equal(finalTolerations))
 		})
 		AfterEach(func() {
