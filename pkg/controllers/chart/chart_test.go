@@ -6,10 +6,88 @@ import (
 	"time"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+func init() {
+	logrus.SetLevel(logrus.DebugLevel)
+}
+
+func TestHashObjects(t *testing.T) {
+	type args struct {
+		chartValuesContent  string
+		configValuesContent string
+		hash                string
+	}
+
+	tests := map[string]args{
+		"No Values": {
+			hash: "SHA256=E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+		},
+		"Chart Only 1": {
+			hash:               "SHA256=774949318A591C34D10D828B9D44F525DCBB34E2249BE2DB0C2FA52BC2A605FD",
+			chartValuesContent: "foo: bar\n",
+		},
+		"Chart Only 2": {
+			hash:               "SHA256=0A37EDD1B2E02066D78A9849F8575148F3832B753988AF32390C2A6C17D9E3F8",
+			chartValuesContent: "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+		},
+		"Chart Only 3": {
+			hash:               "SHA256=550D2692E1933725FF53C903624BC71D3C8F2053827462D1CF6F8AFFD7C29935",
+			chartValuesContent: "{}",
+		},
+		"Config Only 1": {
+			hash:                "SHA256=965E6A0F61A897F00296B3DB056CB5CEB2751501B55B8B16BAFDA3B97CA085B3",
+			configValuesContent: "foo: baz\n",
+		},
+		"Config Only 2": {
+			hash:                "SHA256=7D65D6E3BC1AF42C10A6EC8AACD6B7638C433DFB3B96A1D0DB2FBFAA5F4B7BBC",
+			configValuesContent: "foo:\n  a: false\n  b: 0\n  c: 'false'\n",
+		},
+		"Config Only 3": {
+			hash:                "SHA256=2AE328666F8BA8A27D089C2E6CE3263FD98E827FB1371999D9C762EFB0D81E2B",
+			configValuesContent: "{}",
+		},
+		"Chart and Config 1": {
+			hash:                "SHA256=9F8063ED2A5BEA23BD634CDD649B4E0999E64977244246B8EEA1A916E568601F",
+			chartValuesContent:  "foo: bar\n",
+			configValuesContent: "foo: baz\n",
+		},
+		"Chart and Config 2": {
+			hash:                "SHA256=78CCC0186D0E09A881708E668C9E47810DDF53F726361027328579FA22F4A3A0",
+			chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+			configValuesContent: "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert := assert.New(t)
+			chart := NewChart()
+			config := &v1.HelmChartConfig{}
+			chart.Spec.ValuesContent = test.chartValuesContent
+			config.Spec.ValuesContent = test.configValuesContent
+
+			job, secret, configMap := job(chart, "6443")
+			valuesSecretAddConfig(secret, config)
+
+			assert.Nil(secret.StringData, "Secret StringData should be nil")
+			assert.Nil(configMap.BinaryData, "ConfigMap BinaryData should be nil")
+
+			if test.chartValuesContent == "" && test.configValuesContent == "" {
+				assert.Empty(secret.Data, "Secret Data should be empty if HelmChart and HelmChartConfig ValuesContent are empty")
+			} else {
+				assert.NotEmpty(secret.Data, "Secret Data should not be empty if HelmChart and/or HelmChartConfig ValuesContent are not empty")
+			}
+
+			hashObjects(job, secret, configMap)
+			assert.Equalf(test.hash, job.Spec.Template.ObjectMeta.Annotations[Annotation], "%s annotation value does not match", Annotation)
+		})
+	}
+}
 
 func TestSetVals(t *testing.T) {
 	assert := assert.New(t)
