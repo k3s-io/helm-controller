@@ -32,6 +32,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -98,6 +99,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -128,7 +130,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should upgrade the release successfully", func() {
-			Expect(pods[0].Status.ContainerStatuses[0].Image).To(BeEquivalentTo("docker.io/library/traefik:1.7.20"))
+			Expect(pods[0].Status.ContainerStatuses[0].Image).To(BeEquivalentTo("docker.io/rancher/library-traefik:1.7.20"))
 		})
 		AfterEach(func() {
 			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
@@ -153,6 +155,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -207,6 +210,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -251,6 +255,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -311,6 +316,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v2",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -378,6 +384,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v2",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -410,7 +417,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should upgrade the release successfully", func() {
-			Expect(pods[0].Status.ContainerStatuses[0].Image).To(BeEquivalentTo("docker.io/library/traefik:1.7.20"))
+			Expect(pods[0].Status.ContainerStatuses[0].Image).To(BeEquivalentTo("docker.io/rancher/library-traefik:1.7.20"))
 		})
 		AfterEach(func() {
 			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
@@ -436,6 +443,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -490,6 +498,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -543,6 +552,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -602,6 +612,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -655,6 +666,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,
@@ -717,6 +729,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
 						Type:   intstr.String,

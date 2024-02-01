@@ -114,7 +114,7 @@ func errExit(msg string, err error) {
 	logrus.Panicf("%s: %v", msg, err)
 }
 
-func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set map[string]intstr.IntOrString) *v1.HelmChart {
+func (f *Framework) NewHelmChart(name, chart, version, helmVersion, valuesContent string, set map[string]intstr.IntOrString) *v1.HelmChart {
 	return &v1.HelmChart{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -124,11 +124,12 @@ func (f *Framework) NewHelmChart(name, chart, version, helmVersion string, set m
 			},
 		},
 		Spec: v1.HelmChartSpec{
-			Chart:       chart,
-			Version:     version,
-			Repo:        "",
-			Set:         set,
-			HelmVersion: helmVersion,
+			Chart:         chart,
+			Version:       version,
+			Repo:          "",
+			ValuesContent: valuesContent,
+			Set:           set,
+			HelmVersion:   helmVersion,
 		},
 	}
 }

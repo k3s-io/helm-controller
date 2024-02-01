@@ -3,7 +3,6 @@ package chart
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
 	"os"
 	"regexp"
@@ -591,10 +590,10 @@ func valuesSecret(chart *v1.HelmChart) *corev1.Secret {
 	}
 
 	if chart.Spec.ValuesContent != "" {
-		secret.Data["values-01_HelmChart.yaml"] = base64encode(chart.Spec.ValuesContent)
+		secret.Data["values-01_HelmChart.yaml"] = []byte(chart.Spec.ValuesContent)
 	}
 	if chart.Spec.RepoCA != "" {
-		secret.Data["ca-file.pem"] = base64encode(chart.Spec.RepoCA)
+		secret.Data["ca-file.pem"] = []byte(chart.Spec.RepoCA)
 	}
 
 	return secret
@@ -602,7 +601,7 @@ func valuesSecret(chart *v1.HelmChart) *corev1.Secret {
 
 func valuesSecretAddConfig(secret *corev1.Secret, config *v1.HelmChartConfig) {
 	if config.Spec.ValuesContent != "" {
-		secret.Data["values-10_HelmChartConfig.yaml"] = base64encode(config.Spec.ValuesContent)
+		secret.Data["values-10_HelmChartConfig.yaml"] = []byte(config.Spec.ValuesContent)
 	}
 }
 
@@ -906,11 +905,4 @@ func setSecurityContext(job *batch.Job, chart *v1.HelmChart) {
 	if chart.Spec.SecurityContext != nil {
 		job.Spec.Template.Spec.Containers[0].SecurityContext = chart.Spec.SecurityContext
 	}
-}
-
-func base64encode(s string) []byte {
-	b := []byte(s)
-	dst := make([]byte, base64.StdEncoding.EncodedLen(len(b)))
-	base64.StdEncoding.Encode(dst, b)
-	return dst
 }
