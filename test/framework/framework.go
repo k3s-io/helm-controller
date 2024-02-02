@@ -1,9 +1,12 @@
 package framework
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -210,4 +213,26 @@ func (f *Framework) GetJob(chart *v1.HelmChart) (*batchv1.Job, error) {
 		return nil, fmt.Errorf("waiting for job name to be populated")
 	}
 	return f.ClientSet.BatchV1().Jobs(chart.Namespace).Get(context.TODO(), chart.Status.JobName, metav1.GetOptions{})
+}
+
+// GetChartContent returns the base64-encoded chart tarball,
+// downloaded from the specified URL.
+func (f *Framework) GetChartContent(url string) (string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("unexpected HTTP response: %s", resp.Status)
+	}
+
+	b := &bytes.Buffer{}
+	w := base64.NewEncoder(base64.StdEncoding, b)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		return "", err
+	}
+	if err := w.Close(); err != nil {
+		return "", err
+	}
+	return string(b.Bytes()), nil
 }

@@ -476,6 +476,10 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 									Name:      "klipper-config",
 									MountPath: "/home/klipper-helm/.config",
 								},
+								{
+									Name:      "tmp",
+									MountPath: "/tmp",
+								},
 							},
 						},
 					},
@@ -500,6 +504,14 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 						},
 						{
 							Name: "klipper-config",
+							VolumeSource: corev1.VolumeSource{
+								EmptyDir: &corev1.EmptyDirVolumeSource{
+									Medium: "Memory",
+								},
+							},
+						},
+						{
+							Name: "tmp",
 							VolumeSource: corev1.VolumeSource{
 								EmptyDir: &corev1.EmptyDirVolumeSource{
 									Medium: "Memory",

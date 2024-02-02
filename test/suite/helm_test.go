@@ -244,6 +244,52 @@ var _ = Describe("Helm Tests", Ordered, func() {
 
 	})
 
+	Context("When a helm V3 chart specifies ChartContent", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+			pods  []corev1.Pod
+		)
+		BeforeEach(func() {
+			chart = framework.NewHelmChart("traefik-example-chartcontent",
+				"",
+				"1.86.1",
+				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.ChartContent, err = framework.GetChartContent("https://charts.helm.sh/stable/packages/traefik-1.86.1.tgz")
+			Expect(err).ToNot(HaveOccurred())
+
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			pods, err = framework.WaitForChartApp(chart, "traefik", 120*time.Second, 1)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should install the release successfully", func() {
+			Expect(len(pods)).To(BeEquivalentTo(1))
+		})
+		AfterEach(func() {
+			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() bool {
+				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
+				return err != nil && apierrors.IsNotFound(err)
+			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		})
+
+	})
+
 	Context("When a helm V3 chart creates a namespace", func() {
 		var (
 			err     error
