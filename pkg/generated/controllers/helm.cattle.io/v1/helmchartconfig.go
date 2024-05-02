@@ -20,7 +20,7 @@ package v1
 
 import (
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
-	"github.com/rancher/wrangler/v2/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/generic"
 )
 
 // HelmChartConfigController interface for managing HelmChartConfig resources.
