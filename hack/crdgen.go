@@ -5,7 +5,7 @@ import (
 
 	"github.com/k3s-io/helm-controller/pkg/crd"
 	_ "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
-	wcrd "github.com/rancher/wrangler/v2/pkg/crd"
+	wcrd "github.com/rancher/wrangler/v3/pkg/crd"
 )
 
 func main() {
