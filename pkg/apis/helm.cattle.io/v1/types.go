@@ -42,6 +42,8 @@ type HelmChartSpec struct {
 
 	PodSecurityContext *corev1.PodSecurityContext `json:"podSecurityContext,omitempty"`
 	SecurityContext    *corev1.SecurityContext    `json:"securityContext,omitempty"`
+
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 type HelmChartStatus struct {
