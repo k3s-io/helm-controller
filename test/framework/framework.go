@@ -236,3 +236,13 @@ func (f *Framework) GetChartContent(url string) (string, error) {
 	}
 	return string(b.Bytes()), nil
 }
+
+// GetJobCondition returns true if there is a condition on the job matching the selected type and status
+func (f *Framework) GetJobCondition(job *batchv1.Job, condition batchv1.JobConditionType, status corev1.ConditionStatus) bool {
+	for _, v := range job.Status.Conditions {
+		if v.Type == condition && v.Status == status {
+			return true
+		}
+	}
+	return false
+}
