@@ -353,9 +353,9 @@ var _ = Describe("Helm Tests", Ordered, func() {
 
 	Context("When a helm V2 chart is created", func() {
 		var (
-			err     error
-			chart   *v1.HelmChart
-			secrets []corev1.Secret
+			err   error
+			chart *v1.HelmChart
+			job   *batchv1.Job
 		)
 		BeforeEach(func() {
 			chart = framework.NewHelmChart("traefik-example-v2",
@@ -375,104 +375,13 @@ var _ = Describe("Helm Tests", Ordered, func() {
 				})
 			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
-
-			//avoid checking for jobs because they are finish quickly
-			labelSelector := labels.SelectorFromSet(labels.Set{
-				"OWNER": "TILLER",
-				"NAME":  chart.Name,
-			})
-			secrets, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
-			Expect(err).ToNot(HaveOccurred())
 		})
-		It("Should create a secret for the release", func() {
-			Expect(secrets).To(HaveLen(1))
-		})
-	})
-
-	Context("When a helm V2 chart is deleted", func() {
-		var (
-			err     error
-			chart   *v1.HelmChart
-			secrets []corev1.Secret
-		)
-		BeforeEach(func() {
-			chart, err = framework.GetHelmChart("traefik-example-v2", framework.Namespace)
-			Expect(err).ToNot(HaveOccurred())
-			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
-			Expect(err).ToNot(HaveOccurred())
-			labelSelector := labels.SelectorFromSet(labels.Set{
-				"OWNER": "TILLER",
-				"NAME":  chart.Name,
-			})
-			secrets, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 0)
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("Should remove the release from secrets and delete the chart", func() {
-			Expect(secrets).To(HaveLen(0))
-
-			Eventually(func() bool {
-				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
-				return err != nil && apierrors.IsNotFound(err)
-			}, 120*time.Second, 5*time.Second).Should(BeTrue())
-		})
-	})
-
-	Context("When a helm V2 chart version is updated", func() {
-		var (
-			err     error
-			chart   *v1.HelmChart
-			secrets []corev1.Secret
-			pods    []corev1.Pod
-		)
-		BeforeEach(func() {
-			chart = framework.NewHelmChart("traefik-update-example-v2",
-				"stable/traefik",
-				"1.86.1",
-				"v2",
-				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
-				map[string]intstr.IntOrString{
-					"rbac.enabled": {
-						Type:   intstr.String,
-						StrVal: "true",
-					},
-					"ssl.enabled": {
-						Type:   intstr.String,
-						StrVal: "true",
-					},
-				})
-			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
-			Expect(err).ToNot(HaveOccurred())
-			labelSelector := labels.SelectorFromSet(labels.Set{
-				"OWNER": "TILLER",
-				"NAME":  chart.Name,
-			})
-			secrets, err = framework.WaitForRelease(chart, labelSelector, 120*time.Second, 1)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(secrets).To(HaveLen(1))
-
-			// wait for the chart to settle before updating it
-			time.Sleep(10 * time.Second)
-
-			chart, err = framework.GetHelmChart(chart.Name, framework.Namespace)
-			chart.Spec.Version = "1.86.2"
-			chart, err = framework.UpdateHelmChart(chart, framework.Namespace)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(chart.Spec.Version).To(Equal("1.86.2"))
-			pods, err = framework.WaitForChartApp(chart, "traefik", 120*time.Second, 1)
-			Expect(err).ToNot(HaveOccurred())
-		})
-		It("Should upgrade the release successfully", func() {
-			Expect(pods[0].Status.ContainerStatuses[0].Image).To(BeEquivalentTo("docker.io/rancher/library-traefik:1.7.20"))
-		})
-		AfterEach(func() {
-			err = framework.DeleteHelmChart(chart.Name, framework.Namespace)
-			Expect(err).ToNot(HaveOccurred())
-
-			Eventually(func() bool {
-				_, err := framework.GetHelmChart(chart.Name, framework.Namespace)
-				return err != nil && apierrors.IsNotFound(err)
-			}, 120*time.Second, 5*time.Second).Should(BeTrue())
+		It("Should return error status", func() {
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Eventually(err, 120*time.Second).ShouldNot(HaveOccurred())
+			job, err = framework.GetJob(chart)
+			Eventually(err, 120*time.Second).ShouldNot(HaveOccurred())
+			Eventually(job.Status.Failed, 120*time.Second).Should(BeNumerically(">", 0))
 		})
 	})
 
