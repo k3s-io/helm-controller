@@ -53,7 +53,7 @@ const (
 var (
 	commaRE              = regexp.MustCompile(`\\*,`)
 	deletePolicy         = metav1.DeletePropagationForeground
-	DefaultJobImage      = "rancher/klipper-helm:v0.9.0-build20240730"
+	DefaultJobImage      = "rancher/klipper-helm:v0.9.1-build20240731"
 	DefaultFailurePolicy = FailurePolicyReinstall
 	defaultBackOffLimit  = pointer.Int32(1000)
 
@@ -409,6 +409,18 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 			},
 		},
 		Spec: batch.JobSpec{
+			PodFailurePolicy: &batch.PodFailurePolicy{
+				Rules: []batch.PodFailurePolicyRule{
+					{
+						Action: batch.PodFailurePolicyActionFailJob,
+						OnExitCodes: &batch.PodFailurePolicyOnExitCodesRequirement{
+							ContainerName: pointer.String("helm"),
+							Operator:      batch.PodFailurePolicyOnExitCodesOpIn,
+							Values:        []int32{64},
+						},
+					},
+				},
+			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{},
@@ -417,7 +429,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 					},
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyOnFailure,
+					RestartPolicy: corev1.RestartPolicyNever,
 					Containers: []corev1.Container{
 						{
 							Name:            "helm",
