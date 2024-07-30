@@ -2,6 +2,7 @@ package suite_test
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -376,12 +377,21 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 		})
-		It("Should return error status", func() {
-			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
-			Eventually(err, 120*time.Second).ShouldNot(HaveOccurred())
-			job, err = framework.GetJob(chart)
-			Eventually(err, 120*time.Second).ShouldNot(HaveOccurred())
-			Eventually(job.Status.Failed, 120*time.Second).Should(BeNumerically(">", 0))
+		It("Job should have failed condition", func() {
+			Eventually(func() error {
+				chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+				if err != nil {
+					return err
+				}
+				job, err = framework.GetJob(chart)
+				if err != nil {
+					return err
+				}
+				if !framework.GetJobCondition(job, batchv1.JobFailed, corev1.ConditionTrue) {
+					return fmt.Errorf("expected condition %v=%v not found", batchv1.JobFailed, corev1.ConditionTrue)
+				}
+				return nil
+			}, 120*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 
