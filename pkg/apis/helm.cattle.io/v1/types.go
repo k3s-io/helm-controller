@@ -45,7 +45,8 @@ type HelmChartSpec struct {
 }
 
 type HelmChartStatus struct {
-	JobName string `json:"jobName,omitempty"`
+	JobName    string               `json:"jobName,omitempty"`
+	Conditions []HelmChartCondition `json:"conditions,omitempty"`
 }
 
 // +genclient
@@ -61,4 +62,24 @@ type HelmChartConfig struct {
 type HelmChartConfigSpec struct {
 	ValuesContent string `json:"valuesContent,omitempty"`
 	FailurePolicy string `json:"failurePolicy,omitempty"`
+}
+
+type HelmChartConditionType string
+
+const (
+	HelmChartJobCreated HelmChartConditionType = "JobCreated"
+	HelmChartFailed     HelmChartConditionType = "Failed"
+)
+
+type HelmChartCondition struct {
+	// Type of job condition.
+	Type HelmChartConditionType `json:"type"`
+	// Status of the condition, one of True, False, Unknown.
+	Status corev1.ConditionStatus `json:"status"`
+	// (brief) reason for the condition's last transition.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+	// Human readable message indicating details about last transition.
+	// +optional
+	Message string `json:"message,omitempty"`
 }

@@ -356,7 +356,6 @@ var _ = Describe("Helm Tests", Ordered, func() {
 		var (
 			err   error
 			chart *v1.HelmChart
-			job   *batchv1.Job
 		)
 		BeforeEach(func() {
 			chart = framework.NewHelmChart("traefik-example-v2",
@@ -377,18 +376,14 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 		})
-		It("Job should have failed condition", func() {
+		It("Chart should have failed condition", func() {
 			Eventually(func() error {
 				chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
 				if err != nil {
 					return err
 				}
-				job, err = framework.GetJob(chart)
-				if err != nil {
-					return err
-				}
-				if !framework.GetJobCondition(job, batchv1.JobFailed, corev1.ConditionTrue) {
-					return fmt.Errorf("expected condition %v=%v not found", batchv1.JobFailed, corev1.ConditionTrue)
+				if !framework.GetHelmChartCondition(chart, v1.HelmChartFailed, corev1.ConditionTrue, "Unsupported version") {
+					return fmt.Errorf("expected condition %v=%v not found", v1.HelmChartFailed, corev1.ConditionTrue)
 				}
 				return nil
 			}, 120*time.Second).ShouldNot(HaveOccurred())
