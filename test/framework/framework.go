@@ -237,10 +237,10 @@ func (f *Framework) GetChartContent(url string) (string, error) {
 	return string(b.Bytes()), nil
 }
 
-// GetJobCondition returns true if there is a condition on the job matching the selected type and status
-func (f *Framework) GetJobCondition(job *batchv1.Job, condition batchv1.JobConditionType, status corev1.ConditionStatus) bool {
-	for _, v := range job.Status.Conditions {
-		if v.Type == condition && v.Status == status {
+// GetHelmChartCondition returns true if there is a condition on the chart matching the selected type, status, and reason
+func (f *Framework) GetHelmChartCondition(chart *v1.HelmChart, condition v1.HelmChartConditionType, status corev1.ConditionStatus, reason string) bool {
+	for _, v := range chart.Status.Conditions {
+		if v.Type == condition && v.Status == status && v.Reason == reason {
 			return true
 		}
 	}
