@@ -204,16 +204,60 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 		return nil, chartStatus, nil
 	}
 	if chart.DeletionTimestamp != nil {
-		// this should only be called if the chart is being installed or upgraded
+		// this should only be called if the chart is being deleted
+		return nil, chartStatus, nil
+	}
+
+	switch chart.Spec.HelmVersion {
+	case "", "v3":
+	default:
+		c.recorder.Eventf(chart, corev1.EventTypeWarning, "UnsupportedVersion", "Unsupported Helm version %s: only v3 charts are supported", chart.Spec.HelmVersion)
+		chartStatus.Conditions = []v1.HelmChartCondition{
+			{
+				Type:   v1.HelmChartJobCreated,
+				Status: corev1.ConditionFalse,
+			},
+			{
+				Type:    v1.HelmChartFailed,
+				Status:  corev1.ConditionTrue,
+				Reason:  "Unsupported version",
+				Message: "Only Helm v3 charts are supported",
+			},
+		}
 		return nil, chartStatus, nil
 	}
 
 	job, objs, err := c.getJobAndRelatedResources(chart)
 	if err != nil {
+		chartStatus.Conditions = []v1.HelmChartCondition{
+			{
+				Type:   v1.HelmChartJobCreated,
+				Status: corev1.ConditionFalse,
+			},
+			{
+				Type:    v1.HelmChartFailed,
+				Status:  corev1.ConditionTrue,
+				Reason:  "Job create failed",
+				Message: fmt.Sprintf("Failed to generate Job: %v", err),
+			},
+		}
 		return nil, chartStatus, err
 	}
+
 	// update status
 	chartStatus.JobName = job.Name
+	chartStatus.Conditions = []v1.HelmChartCondition{
+		{
+			Type:    v1.HelmChartJobCreated,
+			Status:  corev1.ConditionTrue,
+			Reason:  "Job created",
+			Message: fmt.Sprintf("Applying HelmChart using Job %s/%s", job.Namespace, job.Name),
+		},
+		{
+			Type:   v1.HelmChartFailed,
+			Status: corev1.ConditionFalse,
+		},
+	}
 
 	// emit an event to indicate that this Helm chart is being applied
 	c.recorder.Eventf(chart, corev1.EventTypeNormal, "ApplyJob", "Applying HelmChart using Job %s/%s", job.Namespace, job.Name)
@@ -409,18 +453,6 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 			},
 		},
 		Spec: batch.JobSpec{
-			PodFailurePolicy: &batch.PodFailurePolicy{
-				Rules: []batch.PodFailurePolicyRule{
-					{
-						Action: batch.PodFailurePolicyActionFailJob,
-						OnExitCodes: &batch.PodFailurePolicyOnExitCodesRequirement{
-							ContainerName: pointer.String("helm"),
-							Operator:      batch.PodFailurePolicyOnExitCodesOpIn,
-							Values:        []int32{64},
-						},
-					},
-				},
-			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{},
@@ -429,7 +461,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 					},
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
+					RestartPolicy: corev1.RestartPolicyOnFailure,
 					Containers: []corev1.Container{
 						{
 							Name:            "helm",
