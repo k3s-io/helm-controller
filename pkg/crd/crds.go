@@ -14,7 +14,8 @@ func List() []crd.CRD {
 		WithColumn("Version", ".spec.version").
 		WithColumn("Repo", ".spec.repo").
 		WithColumn("HelmVersion", ".spec.helmVersion").
-		WithColumn("Bootstrap", ".spec.bootstrap")
+		WithColumn("Bootstrap", ".spec.bootstrap").
+		WithStatus()
 
 	config := crd.NamespacedType("HelmChartConfig.helm.cattle.io/v1").
 		WithSchemaFromStruct(v1.HelmChartConfig{})
