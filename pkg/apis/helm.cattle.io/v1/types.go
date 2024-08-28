@@ -37,11 +37,13 @@ type HelmChartSpec struct {
 	FailurePolicy   string                        `json:"failurePolicy,omitempty"`
 	AuthSecret      *corev1.LocalObjectReference  `json:"authSecret,omitempty"`
 
-	AuthPassCredentials  bool                         `json:"authPassCredentials,omitempty"`
-	DockerRegistrySecret *corev1.LocalObjectReference `json:"dockerRegistrySecret,omitempty"`
+	AuthPassCredentials   bool `json:"authPassCredentials,omitempty"`
+	InsecureSkipTLSVerify bool `json:"insecureSkipTLSVerify,omitempty"`
+	PlainHTTP             bool `json:"plainHTTP,omitempty"`
 
-	PodSecurityContext *corev1.PodSecurityContext `json:"podSecurityContext,omitempty"`
-	SecurityContext    *corev1.SecurityContext    `json:"securityContext,omitempty"`
+	DockerRegistrySecret *corev1.LocalObjectReference `json:"dockerRegistrySecret,omitempty"`
+	PodSecurityContext   *corev1.PodSecurityContext   `json:"podSecurityContext,omitempty"`
+	SecurityContext      *corev1.SecurityContext      `json:"securityContext,omitempty"`
 }
 
 type HelmChartStatus struct {
