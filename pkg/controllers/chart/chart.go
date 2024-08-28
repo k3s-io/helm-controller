@@ -53,7 +53,7 @@ const (
 var (
 	commaRE              = regexp.MustCompile(`\\*,`)
 	deletePolicy         = metav1.DeletePropagationForeground
-	DefaultJobImage      = "rancher/klipper-helm:v0.9.1-build20240731"
+	DefaultJobImage      = "rancher/klipper-helm:v0.9.2-build20240828"
 	DefaultFailurePolicy = FailurePolicyReinstall
 	defaultBackOffLimit  = pointer.Int32(1000)
 
@@ -504,6 +504,14 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 								{
 									Name:  "AUTH_PASS_CREDENTIALS",
 									Value: fmt.Sprintf("%t", chart.Spec.AuthPassCredentials),
+								},
+								{
+									Name:  "INSECURE_SKIP_TLS_VERIFY",
+									Value: fmt.Sprintf("%t", chart.Spec.InsecureSkipTLSVerify),
+								},
+								{
+									Name:  "PLAIN_HTTP",
+									Value: fmt.Sprintf("%t", chart.Spec.PlainHTTP),
 								},
 							},
 							SecurityContext: securityContext,
