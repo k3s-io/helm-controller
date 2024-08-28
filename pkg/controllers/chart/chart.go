@@ -595,6 +595,10 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 				Effect: corev1.TaintEffectNoSchedule,
 			},
 			{
+				Key:    corev1.TaintNodeNetworkUnavailable,
+				Effect: corev1.TaintEffectNoSchedule,
+			},
+			{
 				Key:      TaintExternalCloudProvider,
 				Operator: corev1.TolerationOpEqual,
 				Value:    "true",
