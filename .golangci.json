@@ -11,14 +11,14 @@
 		]
 	},
 	"run": {
-		 "skip-dirs": [
+		 "exclude-dirs": [
 			"build",
 			"hack",
 			"manifests",
 			"package",
 			"scripts"
 		],
-		"skip-files": [
+		"exclude-files": [
 			"/zz_generated_"
 		],
 		"deadline": "5m"
