@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -55,22 +55,22 @@ var (
 	deletePolicy         = metav1.DeletePropagationForeground
 	DefaultJobImage      = "rancher/klipper-helm:v0.9.4-build20250113"
 	DefaultFailurePolicy = FailurePolicyReinstall
-	defaultBackOffLimit  = pointer.Int32(1000)
+	defaultBackOffLimit  = ptr.To(int32(1000))
 
 	defaultPodSecurityContext = &corev1.PodSecurityContext{
-		RunAsNonRoot: pointer.BoolPtr(true),
+		RunAsNonRoot: ptr.To(true),
 		SeccompProfile: &corev1.SeccompProfile{
 			Type: "RuntimeDefault",
 		},
 	}
 	defaultSecurityContext = &corev1.SecurityContext{
-		AllowPrivilegeEscalation: pointer.BoolPtr(false),
+		AllowPrivilegeEscalation: ptr.To(false),
 		Capabilities: &corev1.Capabilities{
 			Drop: []corev1.Capability{
 				"ALL",
 			},
 		},
-		ReadOnlyRootFilesystem: pointer.BoolPtr(true),
+		ReadOnlyRootFilesystem: ptr.To(true),
 	}
 )
 
@@ -707,7 +707,7 @@ func serviceAccount(chart *v1.HelmChart) *corev1.ServiceAccount {
 			Name:      fmt.Sprintf("helm-%s", chart.Name),
 			Namespace: chart.Namespace,
 		},
-		AutomountServiceAccountToken: pointer.BoolPtr(true),
+		AutomountServiceAccountToken: ptr.To(true),
 	}
 }
 

@@ -16,7 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 var _ = Describe("Helm Tests", Ordered, func() {
@@ -504,7 +504,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			chart                      *v1.HelmChart
 			job                        *batchv1.Job
 			expectedPodSecurityContext = &corev1.PodSecurityContext{
-				RunAsNonRoot: pointer.BoolPtr(false),
+				RunAsNonRoot: ptr.To(false),
 			}
 		)
 		BeforeEach(func() {
@@ -524,7 +524,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 					},
 				})
 			chart.Spec.PodSecurityContext = &corev1.PodSecurityContext{
-				RunAsNonRoot: pointer.BoolPtr(false),
+				RunAsNonRoot: ptr.To(false),
 			}
 			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
@@ -561,7 +561,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			chart                     *v1.HelmChart
 			job                       *batchv1.Job
 			defaultPodSecurityContext = &corev1.PodSecurityContext{
-				RunAsNonRoot: pointer.BoolPtr(true),
+				RunAsNonRoot: ptr.To(true),
 				SeccompProfile: &corev1.SeccompProfile{
 					Type: "RuntimeDefault",
 				},
@@ -618,7 +618,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			chart                   *v1.HelmChart
 			job                     *batchv1.Job
 			expectedSecurityContext = &corev1.SecurityContext{
-				AllowPrivilegeEscalation: pointer.BoolPtr(true),
+				AllowPrivilegeEscalation: ptr.To(true),
 			}
 		)
 		BeforeEach(func() {
@@ -638,7 +638,7 @@ var _ = Describe("Helm Tests", Ordered, func() {
 					},
 				})
 			chart.Spec.SecurityContext = &corev1.SecurityContext{
-				AllowPrivilegeEscalation: pointer.BoolPtr(true),
+				AllowPrivilegeEscalation: ptr.To(true),
 			}
 			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
@@ -675,13 +675,13 @@ var _ = Describe("Helm Tests", Ordered, func() {
 			chart                  *v1.HelmChart
 			job                    *batchv1.Job
 			defaultSecurityContext = &corev1.SecurityContext{
-				AllowPrivilegeEscalation: pointer.BoolPtr(false),
+				AllowPrivilegeEscalation: ptr.To(false),
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{
 						"ALL",
 					},
 				},
-				ReadOnlyRootFilesystem: pointer.BoolPtr(true),
+				ReadOnlyRootFilesystem: ptr.To(true),
 			}
 		)
 		BeforeEach(func() {
