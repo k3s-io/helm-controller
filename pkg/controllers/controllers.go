@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/k3s-io/helm-controller/pkg/controllers/chart"
@@ -106,7 +107,13 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		klog.Infof("Starting helm controller in namespace %s", systemNamespace)
 	}
 
-	leader.RunOrDie(ctx, systemNamespace, "helm-controller-lock", appCtx.K8s, func(ctx context.Context) {
+	controllerLockName := "helm-controller-lock"
+	if controllerName != "helm-controller" {
+		klog.Infof("Starting helm controller using alias `%s`", controllerName)
+		controllerLockName = strings.Join([]string{controllerName, controllerLockName}, "-")
+	}
+
+	leader.RunOrDie(ctx, systemNamespace, controllerLockName, appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {
 			klog.Fatal(err)
 		}
