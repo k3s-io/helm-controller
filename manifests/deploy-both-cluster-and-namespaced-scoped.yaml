@@ -1,0 +1,60 @@
+# This is the cluster scoped example - in k3s/RKE2 this is unnecessary as it will be deployed out of the box.
+# To use this example on k3s/RKE2 you should exclude this part, or disable the embedded controller.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helm-controller
+  # Note: This will still deploy to a default namespace
+  labels:
+    app: helm-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helm-controller
+  template:
+    metadata:
+      labels:
+        app: helm-controller
+    spec:
+      containers:
+        - name: helm-controller
+          image: rancher/helm-controller:v0.12.1
+          command: ["helm-controller"]
+          # Alternatively, on k3s/RKE2, you can deploy an example with 3 instances of helm-controller using:
+          # (The 3 being: k3s/RKE2 built-in helm-controller, this second cluster-scoped with unique name, and final namespace scoped.)
+          # args: ["--controller-name", "second-cluster-scoped-instance"]
+# This section and under are the namespace scoped examples.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: helm-controller
+  labels:
+    name: helm-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helm-controller
+  namespace: helm-controller
+  labels:
+    app: helm-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helm-controller
+  template:
+    metadata:
+      labels:
+        app: helm-controller
+    spec:
+      containers:
+        - name: helm-controller
+          image: rancher/helm-controller:v0.12.1
+          command: ["helm-controller"]
+          # Note, only one `helm-controller` can have the lock at the same time, so you muse set a unique name.
+          # The default controller-name bust be overridden for both controllers to work at the same time.
+          args: ["--namespace", "helm-controller", "--controller-name", "helm-controller-namespaced"]
