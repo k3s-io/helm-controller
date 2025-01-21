@@ -103,7 +103,7 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 	if len(systemNamespace) == 0 {
 		klog.Info("Starting helm controller with no namespace")
 	} else {
-		klog.Infof("Starting helm controller in namespace %s", systemNamespace)
+		klog.Infof("Starting %s in namespace %s", controllerName, systemNamespace)
 	}
 
 	controllerLockName := controllerName + "-lock"
