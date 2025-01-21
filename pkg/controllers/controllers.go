@@ -101,7 +101,7 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 	klog.Infof("Using default image '%s' for jobs managing helm charts", chart.DefaultJobImage)
 
 	if len(systemNamespace) == 0 {
-		klog.Info("Starting helm controller with no namespace")
+		klog.Infof("Starting %s with no namespace", controllerName)
 	} else {
 		klog.Infof("Starting %s in namespace %s", controllerName, systemNamespace)
 	}
