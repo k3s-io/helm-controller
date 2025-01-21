@@ -61,8 +61,6 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 
 	if len(controllerName) == 0 {
 		controllerName = "helm-controller"
-	} else {
-		klog.Infof("Starting helm controller with name `%s`", controllerName)
 	}
 
 	appCtx.EventBroadcaster.StartLogging(logrus.Infof)
