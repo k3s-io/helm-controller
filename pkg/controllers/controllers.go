@@ -59,18 +59,20 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		return err
 	}
 
+	if len(controllerName) == 0 {
+		controllerName = "helm-controller"
+	} else {
+		klog.Infof("Starting helm controller with name `%s`", controllerName)
+	}
+
 	appCtx.EventBroadcaster.StartLogging(logrus.Infof)
 	appCtx.EventBroadcaster.StartRecordingToSink(&typedv1.EventSinkImpl{
 		Interface: appCtx.K8s.CoreV1().Events(systemNamespace),
 	})
 	recorder := appCtx.EventBroadcaster.NewRecorder(schemes.All, corev1.EventSource{
-		Component: "helm-controller",
+		Component: controllerName,
 		Host:      opts.NodeName,
 	})
-
-	if len(controllerName) == 0 {
-		controllerName = "helm-controller"
-	}
 
 	// apply custom DefaultJobImage option to Helm before starting charts controller
 	if opts.DefaultJobImage != "" {
@@ -106,7 +108,8 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		klog.Infof("Starting helm controller in namespace %s", systemNamespace)
 	}
 
-	leader.RunOrDie(ctx, systemNamespace, "helm-controller-lock", appCtx.K8s, func(ctx context.Context) {
+	controllerLockName := controllerName + "-lock"
+	leader.RunOrDie(ctx, systemNamespace, controllerLockName, appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {
 			klog.Fatal(err)
 		}
