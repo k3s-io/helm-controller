@@ -25,6 +25,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/start"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	typedv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
@@ -101,9 +102,10 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 	klog.Infof("Using default image '%s' for jobs managing helm charts", chart.DefaultJobImage)
 
 	if len(systemNamespace) == 0 {
-		klog.Infof("Starting %s with no namespace", controllerName)
+		systemNamespace = metav1.NamespaceSystem
+		klog.Infof("Starting %s for all namespaces with lock in %s", controllerName, systemNamespace)
 	} else {
-		klog.Infof("Starting %s in namespace %s", controllerName, systemNamespace)
+		klog.Infof("Starting %s for namespace %s", controllerName, systemNamespace)
 	}
 
 	controllerLockName := controllerName + "-lock"
