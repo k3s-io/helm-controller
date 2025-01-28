@@ -1,8 +1,6 @@
 module github.com/k3s-io/helm-controller
 
-go 1.22.0
-
-toolchain go1.22.2
+go 1.23.4
 
 require (
 	github.com/onsi/ginkgo/v2 v2.22.2
@@ -11,7 +9,7 @@ require (
 	github.com/rancher/wrangler/v3 v3.1.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
