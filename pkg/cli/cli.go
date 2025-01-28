@@ -9,14 +9,11 @@ import (
 
 	"log"
 	"net/http"
-	_ "net/http/pprof"
 
 	"github.com/k3s-io/helm-controller/pkg/controllers"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	"github.com/k3s-io/helm-controller/pkg/crd"
 	wcrd "github.com/rancher/wrangler/v3/pkg/crd"
-	_ "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io"
-	_ "github.com/rancher/wrangler/v3/pkg/generated/controllers/networking.k8s.io"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 	"github.com/spf13/cobra"
@@ -59,21 +56,21 @@ func (hc *HelmController) SetupDebug() error {
 	return nil
 }
 
-func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
-	if a.Debug && a.PprofPort > 0 {
+func (hc *HelmController) Run(cmd *cobra.Command, args []string) error {
+	if hc.Debug && hc.PprofPort > 0 {
 		go func() {
 			// Serves HTTP server runtime profiling data in the format expected by the
 			// pprof visualization tool at the provided endpoint on the local network
 			// See https://pkg.go.dev/net/http/pprof?utm_source=gopls for more information
-			log.Println(http.ListenAndServe(fmt.Sprintf("localhost:%d", a.PprofPort), nil))
+			log.Println(http.ListenAndServe(fmt.Sprintf("localhost:%d", hc.PprofPort), nil))
 		}()
 	}
-	err := a.SetupDebug()
+	err := hc.SetupDebug()
 	if err != nil {
 		panic("failed to setup debug logging: " + err.Error())
 	}
 
-	cfg := a.GetNonInteractiveClientConfig()
+	cfg := hc.GetNonInteractiveClientConfig()
 
 	clientConfig, err := cfg.ClientConfig()
 	if err != nil {
@@ -87,17 +84,17 @@ func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	opts := common.Options{
-		Threadiness:     a.Threads,
-		NodeName:        a.NodeName,
-		JobClusterRole:  a.JobClusterRole,
-		DefaultJobImage: a.DefaultJobImage,
+		Threadiness:     hc.Threads,
+		NodeName:        hc.NodeName,
+		JobClusterRole:  hc.JobClusterRole,
+		DefaultJobImage: hc.DefaultJobImage,
 	}
 
 	if err := opts.Validate(); err != nil {
 		return err
 	}
 
-	if err := controllers.Register(ctx, a.Namespace, a.ControllerName, cfg, opts); err != nil {
+	if err := controllers.Register(ctx, hc.Namespace, hc.ControllerName, cfg, opts); err != nil {
 		return err
 	}
 
@@ -105,12 +102,12 @@ func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (a *HelmController) GetNonInteractiveClientConfig() clientcmd.ClientConfig {
+func (hc *HelmController) GetNonInteractiveClientConfig() clientcmd.ClientConfig {
 	// Modified https://github.com/rancher/wrangler/blob/3ecd23dfea3bb4c76cbe8e06fb158eed6ae3dd31/pkg/kubeconfig/loader.go#L12-L32
 	return clientcmd.NewInteractiveDeferredLoadingClientConfig(
-		kubeconfig.GetLoadingRules(a.Kubeconfig),
+		kubeconfig.GetLoadingRules(hc.Kubeconfig),
 		&clientcmd.ConfigOverrides{
 			ClusterDefaults: clientcmd.ClusterDefaults,
-			ClusterInfo:     clientcmdapi.Cluster{Server: a.MasterURL},
+			ClusterInfo:     clientcmdapi.Cluster{Server: hc.MasterURL},
 		}, nil)
 }
