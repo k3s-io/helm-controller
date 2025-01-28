@@ -38,13 +38,6 @@ type HelmController struct {
 	PprofPort       int
 }
 
-func (hc *HelmController) MustSetupDebug() {
-	err := hc.SetupDebug()
-	if err != nil {
-		panic("failed to setup debug logging: " + err.Error())
-	}
-}
-
 func (hc *HelmController) SetupDebug() error {
 	logging := flag.NewFlagSet("", flag.PanicOnError)
 	klog.InitFlags(logging)
@@ -75,7 +68,10 @@ func (a *HelmController) Run(cmd *cobra.Command, args []string) error {
 			log.Println(http.ListenAndServe(fmt.Sprintf("localhost:%d", a.PprofPort), nil))
 		}()
 	}
-	a.MustSetupDebug()
+	err := a.SetupDebug()
+	if err != nil {
+		panic("failed to setup debug logging: " + err.Error())
+	}
 
 	cfg := a.GetNonInteractiveClientConfig()
 
