@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/klog/v2"
@@ -110,4 +111,15 @@ func (hc *HelmController) GetNonInteractiveClientConfig() clientcmd.ClientConfig
 			ClusterDefaults: clientcmd.ClusterDefaults,
 			ClusterInfo:     clientcmdapi.Cluster{Server: hc.MasterURL},
 		}, nil)
+}
+
+func SetFlagtoEnv(cmd *cobra.Command, name, env string) {
+	flags := cmd.PersistentFlags()
+	v := os.Getenv(env)
+	if v != "" {
+		p := flags.Lookup(name)
+		if p != nil && !p.Changed {
+			flags.Set(name, v)
+		}
+	}
 }
