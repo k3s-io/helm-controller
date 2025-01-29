@@ -1,9 +1,8 @@
-package cli
+package cmd
 
 import (
 	"flag"
 	"fmt"
-	"os"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/klog/v2"
@@ -17,7 +16,7 @@ import (
 	wcrd "github.com/rancher/wrangler/v3/pkg/crd"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/rancher/wrangler/v3/pkg/ratelimit"
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v2"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
@@ -57,7 +56,7 @@ func (hc *HelmController) SetupDebug() error {
 	return nil
 }
 
-func (hc *HelmController) Run(cmd *cobra.Command, args []string) error {
+func (hc *HelmController) Run(app *cli.Context) error {
 	if hc.Debug && hc.PprofPort > 0 {
 		go func() {
 			// Serves HTTP server runtime profiling data in the format expected by the
@@ -78,8 +77,7 @@ func (hc *HelmController) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	clientConfig.RateLimiter = ratelimit.None
-
-	ctx := cmd.Context()
+	ctx := app.Context
 	if err := wcrd.Create(ctx, clientConfig, crd.List()); err != nil {
 		return err
 	}
@@ -99,7 +97,7 @@ func (hc *HelmController) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	<-cmd.Context().Done()
+	<-ctx.Done()
 	return nil
 }
 
@@ -111,15 +109,4 @@ func (hc *HelmController) GetNonInteractiveClientConfig() clientcmd.ClientConfig
 			ClusterDefaults: clientcmd.ClusterDefaults,
 			ClusterInfo:     clientcmdapi.Cluster{Server: hc.MasterURL},
 		}, nil)
-}
-
-func SetFlagtoEnv(cmd *cobra.Command, name, env string) {
-	flags := cmd.PersistentFlags()
-	v := os.Getenv(env)
-	if v != "" {
-		p := flags.Lookup(name)
-		if p != nil && !p.Changed {
-			flags.Set(name, v)
-		}
-	}
 }

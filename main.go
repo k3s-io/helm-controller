@@ -2,46 +2,100 @@ package main
 
 import (
 	_ "net/http/pprof"
+	"os"
 
-	"github.com/k3s-io/helm-controller/pkg/cli"
+	"github.com/k3s-io/helm-controller/pkg/cmd"
 	"github.com/k3s-io/helm-controller/pkg/version"
 	_ "github.com/rancher/wrangler/v3/pkg/generated/controllers/apiextensions.k8s.io"
 	_ "github.com/rancher/wrangler/v3/pkg/generated/controllers/networking.k8s.io"
 	"github.com/rancher/wrangler/v3/pkg/signals"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v2"
 )
 
-var config = cli.HelmController{}
+var config = cmd.HelmController{}
 
 func main() {
-	cmd := &cobra.Command{
-		Version: version.FriendlyVersion(),
+	app := &cli.App{
+		Name:        "helm-controller",
+		Description: "A simple way to manage helm charts with CRDs in K8s.",
+		Version:     version.FriendlyVersion(),
+		Action: func(app *cli.Context) error {
+			return config.Run(app)
+		},
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "controller-name",
+				Value:       "helm-controller",
+				Usage:       "Unique name to identify this controller that is added to all HelmCharts tracked by this controller",
+				EnvVars:     []string{"CONTROLLER_NAME"},
+				Destination: &config.ControllerName,
+			},
+			&cli.BoolFlag{
+				Name:        "debug",
+				Usage:       "Turn on debug logging",
+				Destination: &config.Debug,
+			},
+			&cli.IntFlag{
+				Name:        "debug-level",
+				Usage:       "If debugging is enabled, set klog -v=X",
+				Destination: &config.DebugLevel,
+			},
+			&cli.StringFlag{
+				Name:        "default-job-image",
+				Usage:       "Default image to use by jobs managing helm charts",
+				EnvVars:     []string{"DEFAULT_JOB_IMAGE"},
+				Destination: &config.DefaultJobImage,
+			},
+			&cli.StringFlag{
+				Name:        "job-cluster-role",
+				Value:       "cluster-admin",
+				Usage:       "Name of the cluster role to use for jobs created to manage helm charts",
+				EnvVars:     []string{"JOB_CLUSTER_ROLE"},
+				Destination: &config.JobClusterRole,
+			},
+			&cli.StringFlag{
+				Name:        "kubeconfig",
+				Usage:       "Kubernetes config files, e.g. $HOME/.kube/config",
+				EnvVars:     []string{"KUBECONFIG"},
+				Destination: &config.Kubeconfig,
+			},
+			&cli.StringFlag{
+				Name:        "master-url",
+				Usage:       "Kubernetes cluster master URL",
+				EnvVars:     []string{"MASTERURL"},
+				Destination: &config.MasterURL,
+			},
+			&cli.StringFlag{
+				Name:        "namespace",
+				Usage:       "Namespace to watch, empty means it will watch CRDs in all namespaces",
+				EnvVars:     []string{"NAMESPACE"},
+				Destination: &config.Namespace,
+			},
+			&cli.StringFlag{
+				Name:        "node-name",
+				Usage:       "Name of the node this controller is running on",
+				EnvVars:     []string{"NODE_NAME"},
+				Destination: &config.NodeName,
+			},
+			&cli.IntFlag{
+				Name:        "pprof-port",
+				Value:       6060,
+				Usage:       "Port to publish HTTP server runtime profiling data in the format expected by the pprof visualization tool. Only enabled if in debug mode",
+				Destination: &config.PprofPort,
+			},
+			&cli.IntFlag{
+				Name:        "threads",
+				Value:       2,
+				Usage:       "Threadiness level to set",
+				EnvVars:     []string{"THREADS"},
+				Destination: &config.Threads,
+			},
+		},
 	}
 
-	cmd.Flags().StringVar(&config.ControllerName, "controller-name", "helm-controller", "Unique name to identify this controller that is added to all HelmCharts tracked by this controller. May be set via CONTROLLER_NAME env var.")
-	cli.SetFlagtoEnv(cmd, "controller-name", "CONTROLLER_NAME")
-	cmd.Flags().BoolVar(&config.Debug, "debug", false, "Turn on debug logging")
-	cmd.Flags().IntVar(&config.DebugLevel, "debug-level", 0, "If debugging is enabled, set klog -v=X")
-	cmd.Flags().StringVar(&config.DefaultJobImage, "default-job-image", "", "Default image to use by jobs managing helm charts. May be set via DEFAULT_JOB_IMAGE env var.")
-	cli.SetFlagtoEnv(cmd, "default-job-image", "DEFAULT_JOB_IMAGE")
-	cmd.Flags().StringVar(&config.JobClusterRole, "job-cluster-role", "cluster-admin", "Name of the cluster role to use for jobs created to manage helm charts. May be set via JOB_CLUSTER_ROLE env var.")
-	cli.SetFlagtoEnv(cmd, "job-cluster-role", "JOB_CLUSTER_ROLE")
-	cmd.Flags().StringVarP(&config.Kubeconfig, "kubeconfig", "k", "", "Kubernetes config files, e.g. $HOME/.kube/config. May be set via KUBECONFIG env var.")
-	cli.SetFlagtoEnv(cmd, "kubeconfig", "KUBECONFIG")
-	cmd.Flags().StringVarP(&config.MasterURL, "master-url", "m", "", "Kubernetes cluster master URL. May be set via MASTERURL env var.")
-	cli.SetFlagtoEnv(cmd, "master-url", "MASTERURL")
-	cmd.Flags().StringVarP(&config.Namespace, "namespace", "n", "", "Namespace to watch, empty means it will watch CRDs in all namespaces. May be set via NAMESPACE env var.")
-	cli.SetFlagtoEnv(cmd, "namespace", "NAMESPACE")
-	cmd.Flags().StringVar(&config.NodeName, "node-name", "", "Name of the node this controller is running on. May be set via NODE_NAME env var.")
-	cli.SetFlagtoEnv(cmd, "node-name", "NODE_NAME")
-	cmd.Flags().IntVar(&config.PprofPort, "pprof-port", 6060, "Port to publish HTTP server runtime profiling data in the format expected by the pprof visualization tool. Only enabled if in debug mode.")
-	cmd.Flags().IntVarP(&config.Threads, "threads", "t", 2, "Threadiness level to set. May be set via THREADS env var.")
-	cli.SetFlagtoEnv(cmd, "threads", "THREADS")
-	cmd.RunE = config.Run
-
 	ctx := signals.SetupSignalContext()
-	if err := cmd.ExecuteContext(ctx); err != nil {
+	if err := app.RunContext(ctx, os.Args); err != nil {
 		logrus.Fatal(err)
 	}
 }
