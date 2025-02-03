@@ -1,6 +1,7 @@
 IMAGE_NAME ?= helm-controller
-.DEFAULT_GOAL := ci
+ARCH ?= amd64
 
+.DEFAULT_GOAL := ci
 .PHONY: build test validate package clean
 
 build:
@@ -8,18 +9,17 @@ build:
 		--target binary \
 		--output type=local,dest=. .
 
-test:
-	docker build --target dev -t $(IMAGE_NAME)-dev .
-	docker run --rm $(IMAGE_NAME)-dev ./scripts/test
-
 validate:
-	docker build --target dev -t $(IMAGE_NAME)-dev .
+	docker build --target dev --build-arg ARCH=$(ARCH) -t $(IMAGE_NAME)-dev .
 	docker run --rm $(IMAGE_NAME)-dev ./scripts/validate
+
+test:
+	docker build --target dev --build-arg ARCH=$(ARCH) -t $(IMAGE_NAME)-dev .
+	docker run --rm $(IMAGE_NAME)-dev ./scripts/test
 
 package: SHELL:=/bin/bash
 package: 
-	docker build --target artifacts --output type=local,dest=. .
-
+	docker build --target artifacts --build-arg ARCH=$(ARCH) --output type=local,dest=. .
 	source ./scripts/version &&	IMAGE=$${REPO}/helm-controller:$${TAG}; \
 		docker build -t $${IMAGE} --target production .; \
 		echo $${IMAGE} > bin/helm-controller-image.txt; \
@@ -28,4 +28,4 @@ package:
 clean:
 	rm -rf bin/* dist/*
 
-ci: build test validate package
+ci: build validate test package

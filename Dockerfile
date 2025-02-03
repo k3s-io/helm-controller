@@ -15,13 +15,16 @@ COPY --from=builder /bin/helm-controller /bin/
 
 # Dev stage for package, testing, and validation
 FROM golang:1.23-alpine3.21 AS dev
+ARG ARCH
+ENV ARCH=$ARCH
 RUN apk add --no-cache bash git gcc musl-dev curl
 RUN GOPROXY=direct go install golang.org/x/tools/cmd/goimports@gopls/v0.16.2
-RUN if [ "${ARCH}" == "amd64" ]; then \
+RUN if [ "${ARCH}" != "arm" ]; then \
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.63.4; \
-    go install sigs.k8s.io/kustomize/kustomize/v4@v4.5.7 \
     fi
-
+RUN if [ "${ARCH}" = "amd64" ]; then \
+    go install sigs.k8s.io/kustomize/kustomize/v4@v4.5.7; \
+    fi
 
 WORKDIR /src
 COPY go.mod go.sum pkg/ main.go ./
