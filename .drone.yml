@@ -9,17 +9,20 @@ platform:
 
 steps:
 - name: build
-  image: rancher/dapper:v0.6.0
+  image: docker:27.5
   commands:
-  - dapper ci
+  - apk add make git bash file
+  - git config --global --add safe.directory /drone/src
+  - make
   volumes:
   - name: docker
     path: /var/run/docker.sock
 
 - name: e2e test
-  image: rancher/dapper:v0.6.0
+  image: docker:27.5
   commands:
-  - dapper e2e
+  - apk add make git bash file
+  - ./scripts/e2e
   volumes:
   - name: docker
     path: /var/run/docker.sock
@@ -80,9 +83,11 @@ platform:
 
 steps:
 - name: build
-  image: rancher/dapper:v0.6.0
+  image: docker:27.5
   commands:
-  - dapper ci
+  - apk add make git bash file
+  - git config --global --add safe.directory /drone/src
+  - make
   volumes:
   - name: docker
     path: /var/run/docker.sock
@@ -143,10 +148,11 @@ platform:
 
 steps:
 - name: build
-  # ARM Dapper >= v0.5.8 results in core dump when running in CI
-  image: rancher/dapper:v0.5.0
+  image: docker:27.5
   commands:
-  - dapper ci
+  - apk add make git bash file
+  - git config --global --add safe.directory /drone/src
+  - make
   volumes:
   - name: docker
     path: /var/run/docker.sock
