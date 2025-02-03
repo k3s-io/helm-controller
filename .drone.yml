@@ -26,7 +26,6 @@ steps:
   image: golang:1.23.4-alpine3.21
   commands:
   - apk add make git bash file docker
-  - docker image list
   - ./scripts/e2e
   volumes:
   - name: docker

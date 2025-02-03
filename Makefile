@@ -26,6 +26,6 @@ package:
 		echo Built $${IMAGE}
 
 clean:
-	rm -rf bin/* dist/*
+	rm -rf bin dist
 
 ci: build validate test package

@@ -5,13 +5,12 @@ RUN apk add --no-cache bash git gcc musl-dev
 WORKDIR /src
 COPY . .
 
-RUN . ./scripts/version
 RUN --mount=type=cache,id=gomod,target=/go/pkg/mod \
     --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -ldflags "-X main.VERSION=$VERSION -extldflags -static -s" -o /bin/helm-controller
+    ./scripts/build
 
 FROM scratch AS binary
-COPY --from=builder /bin/helm-controller /bin/
+COPY --from=builder /src/bin/helm-controller /bin/
 
 # Dev stage for package, testing, and validation
 FROM golang:1.23-alpine3.21 AS dev
