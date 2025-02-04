@@ -13,10 +13,19 @@ if [[ ! -f 'bin/helm-controller-image.txt' ]]; then
 fi
 
 setup_k8s(){
+    # Drone launches each step in an isolated network. Check and see if there is another bridge network
+    # that is not the default bridge network. If so, use that network for the k3s node.
+    BRIDGE_NETWORKS=$(docker network ls --filter driver=bridge --format '{{.Name}}' | grep -v bridge)
+    if [ -n "$BRIDGE_NETWORKS" ]; then
+        K3S_NODE_NETWORK=$(echo "$BRIDGE_NETWORKS" | head -n 1)
+        echo "Using network $K3S_NODE_NETWORK"
+    else
+        K3S_NODE_NETWORK=bridge
+    fi
     # Using k3s with embedded helm controller disabled
     docker pull rancher/k3s:$K3S_VERSION
-    docker run --detach --privileged --rm --publish 6443 --name $K3S_NODE_NAME --hostname $K3S_NODE_NAME rancher/k3s:$K3S_VERSION server --disable-helm-controller --disable=metrics-server,traefik
-    K3S_NODE_IP=$(docker inspect $K3S_NODE_NAME --format='{{index .NetworkSettings.Networks "bridge" "IPAddress"}}')
+    docker run --detach --privileged --rm --network="$K3S_NODE_NETWORK" -p 6443 --name $K3S_NODE_NAME --hostname $K3S_NODE_NAME rancher/k3s:$K3S_VERSION server --disable-helm-controller --disable=metrics-server,traefik
+    K3S_NODE_IP=$(docker inspect $K3S_NODE_NAME --format="{{index .NetworkSettings.Networks \"$K3S_NODE_NETWORK\" \"IPAddress\"}}")
     sleep $K3S_WAIT_TIME
     docker exec $K3S_NODE_NAME sed "s/127.0.0.1/$K3S_NODE_IP/" /etc/rancher/k3s/k3s.yaml > $PWD/kube_config_cluster.yml
 }

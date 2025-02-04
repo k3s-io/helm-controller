@@ -1,5 +1,8 @@
 #!/bin/bash
 
+ARCH=${ARCH:-$(go env GOHOSTARCH)}
+SUFFIX="-${ARCH}"
+
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     DIRTY="-dirty"
 fi
@@ -13,6 +16,11 @@ else
     VERSION="${COMMIT}${DIRTY}"
 fi
 
-if [ -z "$ARCH" ]; then
-    ARCH=$(go env GOHOSTARCH)
+# For docker image
+TAG=${TAG:-${VERSION}${SUFFIX}}
+REPO=${REPO:-rancher}
+
+# If tag contains dirty, set to dev
+if echo $TAG | grep -q dirty; then
+    TAG=dev
 fi

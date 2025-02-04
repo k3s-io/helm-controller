@@ -3,21 +3,11 @@ set -e
 
 source $(dirname $0)/version
 
-ARCH=${ARCH:-"amd64"}
-SUFFIX="-${ARCH}"
-
 cd $(dirname $0)/..
 
 if [[ ! -f 'bin/helm-controller' ]]; then
     echo "Run 'make build' first."
     exit 1
-fi
-
-TAG=${TAG:-${VERSION}${SUFFIX}}
-REPO=${REPO:-rancher}
-
-if echo $TAG | grep -q dirty; then
-    TAG=dev
 fi
 
 mkdir -p dist/artifacts
@@ -43,14 +33,3 @@ if [ "$ARCH" = "amd64" ]; then
     echo "---" >> ./dist/artifacts/deploy-namespaced.yaml
   done
 fi
-
-IMAGE=${REPO}/helm-controller:${TAG}
-DOCKERFILE=package/Dockerfile
-if [ -e ${DOCKERFILE}.${ARCH} ]; then
-    DOCKERFILE=${DOCKERFILE}.${ARCH}
-fi
-
-docker build -f ${DOCKERFILE} -t ${IMAGE} .
-echo ${IMAGE} > bin/helm-controller-image.txt
-
-echo Built ${IMAGE}
