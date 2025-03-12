@@ -28,6 +28,7 @@ type HelmChartSpec struct {
 	RepoCAConfigMap *corev1.LocalObjectReference  `json:"repoCAConfigMap,omitempty"`
 	Set             map[string]intstr.IntOrString `json:"set,omitempty"`
 	ValuesContent   string                        `json:"valuesContent,omitempty"`
+	ValuesSecrets   []SecretSpec                  `json:"valuesSecrets,omitempty"`
 	HelmVersion     string                        `json:"helmVersion,omitempty"`
 	Bootstrap       bool                          `json:"bootstrap,omitempty"`
 	ChartContent    string                        `json:"chartContent,omitempty"`
@@ -62,8 +63,9 @@ type HelmChartConfig struct {
 }
 
 type HelmChartConfigSpec struct {
-	ValuesContent string `json:"valuesContent,omitempty"`
-	FailurePolicy string `json:"failurePolicy,omitempty"`
+	ValuesContent string       `json:"valuesContent,omitempty"`
+	ValuesSecrets []SecretSpec `json:"valuesSecrets,omitempty"`
+	FailurePolicy string       `json:"failurePolicy,omitempty"`
 }
 
 type HelmChartConditionType string
@@ -84,4 +86,11 @@ type HelmChartCondition struct {
 	// Human readable message indicating details about last transition.
 	// +optional
 	Message string `json:"message,omitempty"`
+}
+
+// SecretSpec describes a key in a secret to load chart values from.
+type SecretSpec struct {
+	Name          string   `json:"name,omitempty"`
+	Keys          []string `json:"keys,omitempty"`
+	IgnoreUpdates bool     `json:"ignoreUpdates,omitempty"`
 }
