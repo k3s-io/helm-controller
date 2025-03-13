@@ -6,9 +6,11 @@ import (
 	"time"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -28,36 +30,36 @@ func TestHashObjects(t *testing.T) {
 			hash: "SHA256=E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
 		},
 		"Chart Only 1": {
-			hash:               "SHA256=F2430D3E9731D361C834918C8811603AB6C7B1ABF794714E6A049667FA26AF56",
+			hash:               "SHA256=B7D684A932E5B3AC74E009951700E032CE9936BF6BE82CD2DED22B5EA647EE5D",
 			chartValuesContent: "foo: bar\n",
 		},
 		"Chart Only 2": {
-			hash:               "SHA256=CFA019F5E68D9ECDC32113711AFE24D2A16BDCD6FDFE8C931AEB016B6571CA32",
+			hash:               "SHA256=F3756AFACE793965D81AE9E9BD85A51369E60C18FE024E4D950BF56054258070",
 			chartValuesContent: "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
 		},
 		"Chart Only 3": {
-			hash:               "SHA256=D29893D5711A98CE622ABB742144FD9B9CE4721EC74E5C2BE22514FDDC1B7B28",
+			hash:               "SHA256=FFE4DB5EFB61ACC03F197C464414B5BB65885E8F03AE11B9EBB657D5DD3CCC55",
 			chartValuesContent: "{}",
 		},
 		"Config Only 1": {
-			hash:                "SHA256=741B84D32D28AAEB48BB8AB0AC5E81C721FB7F1D388230FE512CAA98F27AE161",
+			hash:                "SHA256=E00641CFFEB2D8EA3403D56DD456DAAF9578B4871F2FDB41B0F1AA33C25B69AF",
 			configValuesContent: "foo: baz\n",
 		},
 		"Config Only 2": {
-			hash:                "SHA256=F1C538DA9A5416D68C9CE00CE087F5FBE262A2BF09AB4CA012A2CFB75EB7B3F2",
+			hash:                "SHA256=309A32E491B3F0F43432948D90B4E766A278D0A3B3220E691EE35BC6429ECB52",
 			configValuesContent: "foo:\n  a: false\n  b: 0\n  c: 'false'\n",
 		},
 		"Config Only 3": {
-			hash:                "SHA256=DF34CF6AA589A222578D73E6E8CE2D8FC8B725067CEAE8346DF5074788A3FF1F",
+			hash:                "SHA256=E1D81D53C173950A8F35BB397759CF49B3F43C0C797AD4F7C7AD6A3A47180E03",
 			configValuesContent: "{}",
 		},
 		"Chart and Config 1": {
-			hash:                "SHA256=6E4947C029CC2A4950C271F7411BEE8B54CBD16D384703B67FF36BAE282FCC75",
+			hash:                "SHA256=F81EFF0BAF43F57D87FB53BCFAB06271091B411C4A582FCC130C33951CB7C81D",
 			chartValuesContent:  "foo: bar\n",
 			configValuesContent: "foo: baz\n",
 		},
 		"Chart and Config 2": {
-			hash:                "SHA256=104D10F97C23BCC66EEA4B6F0489B6F3D6E414094C1DC300F2C123E68BD9BEF5",
+			hash:                "SHA256=E41407A16AAC1DBD0B6D00A1818B0A73B0EB9A506131F3CAFD102ED751A8AA3D",
 			chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
 			configValuesContent: "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
 		},
@@ -72,6 +74,8 @@ func TestHashObjects(t *testing.T) {
 			config.Spec.ValuesContent = test.configValuesContent
 
 			job, secret, configMap := job(chart, "6443")
+			objects := []metav1.Object{configMap, secret}
+
 			valuesSecretAddConfig(job, secret, config)
 
 			assert.Nil(secret.StringData, "Secret StringData should be nil")
@@ -83,7 +87,11 @@ func TestHashObjects(t *testing.T) {
 				assert.NotEmpty(secret.Data, "Secret Data should not be empty if HelmChart and/or HelmChartConfig ValuesContent are not empty")
 			}
 
-			hashObjects(job, secret, configMap)
+			hashObjects(job, objects...)
+
+			b, _ := yaml.ToBytes([]runtime.Object{job})
+			t.Logf("Generated Job:\n%s", b)
+
 			assert.Equalf(test.hash, job.Spec.Template.ObjectMeta.Annotations[Annotation], "%s annotation value does not match", Annotation)
 		})
 	}
