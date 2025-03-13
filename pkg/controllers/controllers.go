@@ -95,7 +95,9 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		appCtx.RBAC.ClusterRoleBinding(),
 		appCtx.Core.ServiceAccount(),
 		appCtx.Core.ConfigMap(),
-		appCtx.Core.Secret())
+		appCtx.Core.Secret(),
+		appCtx.Core.Secret().Cache(),
+	)
 
 	klog.Infof("Starting helm controller with %d threads", opts.Threadiness)
 	klog.Infof("Using cluster role '%s' for jobs managing helm charts", opts.JobClusterRole)

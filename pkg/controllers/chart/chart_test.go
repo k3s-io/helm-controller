@@ -72,7 +72,7 @@ func TestHashObjects(t *testing.T) {
 			config.Spec.ValuesContent = test.configValuesContent
 
 			job, secret, configMap := job(chart, "6443")
-			valuesSecretAddConfig(secret, config)
+			valuesSecretAddConfig(job, secret, config)
 
 			assert.Nil(secret.StringData, "Secret StringData should be nil")
 			assert.Nil(configMap.BinaryData, "ConfigMap BinaryData should be nil")
