@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
 	"k8s.io/client-go/util/retry"
 
@@ -22,10 +21,10 @@ import (
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -137,22 +136,41 @@ func (f *Framework) NewHelmChart(name, chart, version, helmVersion, valuesConten
 	}
 }
 
-func (f *Framework) WaitForRelease(chart *v1.HelmChart, labelSelector labels.Selector, timeout time.Duration, count int) (secrets []corev1.Secret, err error) {
+func (f *Framework) NewHelmChartConfig(name, valuesContent string) *v1.HelmChartConfig {
+	return &v1.HelmChartConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: f.Namespace,
+			Labels: map[string]string{
+				"helm-test": "true",
+			},
+		},
+		Spec: v1.HelmChartConfigSpec{
+			ValuesContent: valuesContent,
+		},
+	}
+}
+
+func (f *Framework) ListReleases(chart *v1.HelmChart) ([]corev1.Secret, error) {
+	labelSelector := labels.SelectorFromSet(labels.Set{
+		"owner": "helm",
+		"name":  chart.Name,
+	})
 	namespace := chart.Namespace
 	if chart.Spec.TargetNamespace != "" {
 		namespace = chart.Spec.TargetNamespace
 	}
 
-	return secrets, wait.Poll(5*time.Second, timeout, func() (bool, error) {
-		list, err := f.ClientSet.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: labelSelector.String(),
-		})
-		if err != nil {
-			return false, err
+	secretList, err := f.ClientSet.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector.String()})
+
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
 		}
-		secrets = list.Items
-		return len(secrets) == count, nil
-	})
+		return nil, err
+	}
+
+	return secretList.Items, nil
 }
 
 func (f *Framework) CreateHelmChart(chart *v1.HelmChart, namespace string) (*v1.HelmChart, error) {
@@ -180,7 +198,11 @@ func (f *Framework) DeleteHelmChart(name, namespace string) error {
 }
 
 func (f *Framework) GetHelmChart(name, namespace string) (*v1.HelmChart, error) {
-	return f.HelmClientSet.HelmV1().HelmCharts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	r, err := f.HelmClientSet.HelmV1().HelmCharts(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (f *Framework) ListHelmCharts(labelSelector, namespace string) (*v1.HelmChartList, error) {
@@ -189,30 +211,46 @@ func (f *Framework) ListHelmCharts(labelSelector, namespace string) (*v1.HelmCha
 	})
 }
 
-// WaitForChartApp will check the for pods created by the chart
-func (f *Framework) WaitForChartApp(chart *v1.HelmChart, appName string, timeout time.Duration, count int) (pods []corev1.Pod, err error) {
+func (f *Framework) CreateHelmChartConfig(chartConfig *v1.HelmChartConfig, namespace string) (*v1.HelmChartConfig, error) {
+	return f.HelmClientSet.HelmV1().HelmChartConfigs(namespace).Create(context.TODO(), chartConfig, metav1.CreateOptions{})
+}
+
+func (f *Framework) DeleteHelmChartConfig(name, namespace string) error {
+	return f.HelmClientSet.HelmV1().HelmChartConfigs(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+}
+
+func (f *Framework) ListChartPods(chart *v1.HelmChart, appName string) ([]corev1.Pod, error) {
 	labelSelector := labels.SelectorFromSet(labels.Set{
 		"app":     appName,
 		"release": chart.Name,
 	})
 
-	return pods, wait.Poll(5*time.Second, timeout, func() (bool, error) {
-		list, err := f.ClientSet.CoreV1().Pods(chart.Namespace).List(context.TODO(), metav1.ListOptions{
-			LabelSelector: labelSelector.String(),
-		})
-		if err != nil {
-			return false, err
+	namespace := chart.Namespace
+	if chart.Spec.TargetNamespace != "" {
+		namespace = chart.Spec.TargetNamespace
+	}
+
+	podList, err := f.ClientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector.String()})
+
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
 		}
-		pods = list.Items
-		return len(pods) >= count, nil
-	})
+		return nil, err
+	}
+
+	return podList.Items, nil
 }
 
 func (f *Framework) GetJob(chart *v1.HelmChart) (*batchv1.Job, error) {
 	if chart.Status.JobName == "" {
 		return nil, fmt.Errorf("waiting for job name to be populated")
 	}
-	return f.ClientSet.BatchV1().Jobs(chart.Namespace).Get(context.TODO(), chart.Status.JobName, metav1.GetOptions{})
+	r, err := f.ClientSet.BatchV1().Jobs(chart.Namespace).Get(context.TODO(), chart.Status.JobName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 // GetChartContent returns the base64-encoded chart tarball,
