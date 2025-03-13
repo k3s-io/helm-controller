@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
@@ -37,6 +38,7 @@ const (
 	Label         = "helmcharts.helm.cattle.io/chart"
 	Annotation    = "helmcharts.helm.cattle.io/configHash"
 	Unmanaged     = "helmcharts.helm.cattle.io/unmanaged"
+	SecretType    = "helmcharts.helm.cattle.io/values"
 	ManagedBy     = "helmcharts.cattle.io/managed-by"
 	CRDName       = "helmcharts.helm.cattle.io"
 	ConfigCRDName = "helmchartconfigs.helm.cattle.io"
@@ -48,6 +50,9 @@ const (
 
 	FailurePolicyReinstall = "reinstall"
 	FailurePolicyAbort     = "abort"
+
+	chartBySecretIndex       = "helmcharts.helm.cattle.io/chart-by-secret"
+	chartConfigBySecretIndex = "helmcharts.helm.cattle.io/chartconfig-by-secret"
 )
 
 var (
@@ -84,6 +89,7 @@ type Controller struct {
 	confCache       helmcontroller.HelmChartConfigCache
 	jobs            batchcontroller.JobController
 	jobCache        batchcontroller.JobCache
+	secretCache     corecontroller.SecretCache
 	apply           apply.Apply
 	recorder        record.EventRecorder
 	apiServerPort   string
@@ -107,7 +113,8 @@ func Register(
 	crbs rbaccontroller.ClusterRoleBindingController,
 	sas corecontroller.ServiceAccountController,
 	cm corecontroller.ConfigMapController,
-	s corecontroller.SecretController) {
+	s corecontroller.SecretController,
+	sCache corecontroller.SecretCache) {
 
 	c := &Controller{
 		systemNamespace: systemNamespace,
@@ -119,6 +126,7 @@ func Register(
 		confCache:       confCache,
 		jobs:            jobs,
 		jobCache:        jobCache,
+		secretCache:     sCache,
 		recorder:        recorder,
 		apiServerPort:   apiServerPort,
 	}
@@ -128,7 +136,12 @@ func Register(
 		WithStrictCaching().
 		WithPatcher(jobs.GroupVersionKind(), c.jobPatcher)
 
-	relatedresource.Watch(ctx, "resolve-helm-chart-from-config", c.resolveHelmChartFromConfig, helms, confs)
+	helmCache.AddIndexer(chartBySecretIndex, chartBySecret)
+	confCache.AddIndexer(chartConfigBySecretIndex, chartConfigBySecret)
+
+	relatedresource.Watch(ctx, "resolve-helm-chart-from-helm-chart-config", c.resolveHelmChartFromHelmChartConfig, helms, confs)
+	relatedresource.Watch(ctx, "resolve-helm-chart-from-secret", c.resolveHelmChartFromSecret, helms, s)
+	relatedresource.Watch(ctx, "resolve-helm-chart-config-from-secret", c.resolveHelmChartConfigFromSecret, confs, s)
 
 	// Why do we need to add the managedBy string to the generatingHandlerName?
 	//
@@ -172,11 +185,12 @@ func (c *Controller) jobPatcher(namespace, name string, pt types.PatchType, data
 	return nil, err
 }
 
-func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
+func (c *Controller) resolveHelmChartFromHelmChartConfig(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
 	if len(c.systemNamespace) > 0 && namespace != c.systemNamespace {
 		// do nothing if it's not in the namespace this controller was registered with
 		return nil, nil
 	}
+	// See if there is a HelmChart with the same name/namespace as this HelmChartConfig
 	if conf, ok := obj.(*v1.HelmChartConfig); ok {
 		chart, err := c.helmCache.Get(conf.Namespace, conf.Name)
 		if err != nil {
@@ -193,6 +207,48 @@ func (c *Controller) resolveHelmChartFromConfig(namespace, name string, obj runt
 				Namespace: conf.Namespace,
 			},
 		}, nil
+	}
+	return nil, nil
+}
+
+func (c *Controller) resolveHelmChartFromSecret(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
+	if len(c.systemNamespace) > 0 && namespace != c.systemNamespace {
+		// do nothing if it's not in the namespace this controller was registered with
+		return nil, nil
+	}
+	// See if there are HelmCharts in the same namespace that reference this Secret
+	if secret, ok := obj.(*corev1.Secret); ok {
+		charts, err := c.helmCache.GetByIndex(chartBySecretIndex, secret.Namespace+"."+secret.Name)
+		if err != nil {
+			return nil, err
+		}
+		keys := make([]relatedresource.Key, len(charts))
+		for i, chart := range charts {
+			keys[i].Name = chart.Name
+			keys[i].Namespace = chart.Namespace
+		}
+		return keys, nil
+	}
+	return nil, nil
+}
+
+func (c *Controller) resolveHelmChartConfigFromSecret(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
+	if len(c.systemNamespace) > 0 && namespace != c.systemNamespace {
+		// do nothing if it's not in the namespace this controller was registered with
+		return nil, nil
+	}
+	// See if there are HelmChartConfigs in the same namespace that reference this Secret
+	if secret, ok := obj.(*corev1.Secret); ok {
+		confs, err := c.confCache.GetByIndex(chartConfigBySecretIndex, secret.Namespace+"."+secret.Name)
+		if err != nil {
+			return nil, err
+		}
+		keys := make([]relatedresource.Key, len(confs))
+		for i, conf := range confs {
+			keys[i].Name = conf.Name
+			keys[i].Namespace = conf.Namespace
+		}
+		return keys, nil
 	}
 	return nil, nil
 }
@@ -394,6 +450,16 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 
 	// get the default job and configmaps
 	job, valuesSecret, contentConfigMap := job(chart, c.apiServerPort)
+	objects := []metav1.Object{contentConfigMap, valuesSecret}
+
+	// make sure that changes to HelmChart ValuesSecrets triger change to hash
+	for _, secret := range chart.Spec.ValuesSecrets {
+		if !secret.IgnoreUpdates && secret.Name != "chart-values-"+chart.Name {
+			if s, err := c.secretCache.Get(chart.Namespace, secret.Name); err == nil {
+				objects = append(objects, s)
+			}
+		}
+	}
 
 	// check if a HelmChartConfig is registered for this Helm chart
 	config, err := c.confCache.Get(chart.Namespace, chart.Name)
@@ -404,18 +470,29 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	}
 	if config != nil {
 		// Merge the values into the HelmChart's values
-		valuesSecretAddConfig(valuesSecret, config)
+		valuesSecretAddConfig(job, valuesSecret, config)
+
 		// Override the failure policy to what is provided in the HelmChartConfig
 		if config.Spec.FailurePolicy != "" {
 			failurePolicy = config.Spec.FailurePolicy
 		}
+
+		// make sure that changes to HelmChart ValuesSecrets triger change to hash
+		for _, secret := range config.Spec.ValuesSecrets {
+			if !secret.IgnoreUpdates && secret.Name != "chart-values-"+config.Name {
+				if s, err := c.secretCache.Get(chart.Namespace, secret.Name); err == nil {
+					objects = append(objects, s)
+				}
+			}
+		}
 	}
+
 	// set the failure policy and add additional annotations to the job
 	// note: the purpose of the additional annotation is to cause the job to be destroyed
 	// and recreated if the hash of the HelmChartConfig changes while it is being processed
 	setFailurePolicy(job, failurePolicy)
 	setBackOffLimit(job, backOffLimit)
-	hashObjects(job, contentConfigMap, valuesSecret)
+	hashObjects(job, objects...)
 
 	return job, []runtime.Object{
 		valuesSecret,
@@ -423,6 +500,26 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 		serviceAccount(chart),
 		roleBinding(chart, c.jobClusterRole),
 	}, nil
+}
+
+func chartBySecret(chart *v1.HelmChart) ([]string, error) {
+	keys := sets.Set[string]{}
+	for _, secret := range chart.Spec.ValuesSecrets {
+		if !secret.IgnoreUpdates {
+			keys.Insert(chart.Namespace + "." + secret.Name)
+		}
+	}
+	return keys.UnsortedList(), nil
+}
+
+func chartConfigBySecret(conf *v1.HelmChartConfig) ([]string, error) {
+	keys := sets.Set[string]{}
+	for _, secret := range conf.Spec.ValuesSecrets {
+		if !secret.IgnoreUpdates {
+			keys.Insert(conf.Namespace + "." + secret.Name)
+		}
+	}
+	return keys.UnsortedList(), nil
 }
 
 func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret, *corev1.ConfigMap) {
@@ -662,23 +759,56 @@ func valuesSecret(chart *v1.HelmChart) *corev1.Secret {
 			Name:      fmt.Sprintf("chart-values-%s", chart.Name),
 			Namespace: chart.Namespace,
 		},
-		Type: corev1.SecretTypeOpaque,
+		Type: SecretType,
 		Data: map[string][]byte{},
 	}
 
 	if chart.Spec.ValuesContent != "" {
-		secret.Data["values-01_HelmChart.yaml"] = []byte(chart.Spec.ValuesContent)
+		secret.Data["HelmChartValuesContent"] = []byte(chart.Spec.ValuesContent)
 	}
 	if chart.Spec.RepoCA != "" {
-		secret.Data["ca-file.pem"] = []byte(chart.Spec.RepoCA)
+		secret.Data["RepoCA"] = []byte(chart.Spec.RepoCA)
 	}
 
 	return secret
 }
 
-func valuesSecretAddConfig(secret *corev1.Secret, config *v1.HelmChartConfig) {
+func valuesSecretAddConfig(job *batch.Job, secret *corev1.Secret, config *v1.HelmChartConfig) {
 	if config.Spec.ValuesContent != "" {
-		secret.Data["values-10_HelmChartConfig.yaml"] = []byte(config.Spec.ValuesContent)
+		secret.Data["HelmChartConfigValuesContent"] = []byte(config.Spec.ValuesContent)
+
+		// modify projected volume to hold collected secret keys
+		for i := range job.Spec.Template.Spec.Volumes {
+			if job.Spec.Template.Spec.Volumes[i].Name != "values" {
+				continue
+			}
+			valuesVolume := &job.Spec.Template.Spec.Volumes[i]
+
+			// add item for HelmChartConfig ValuesContent
+			// the first source in this volume is always the managed secret for this HelmChart
+			valuesVolume.Projected.Sources[0].Secret.Items = append(valuesVolume.Projected.Sources[0].Secret.Items, corev1.KeyToPath{Key: "HelmChartConfigValuesContent", Path: "values-1-000-HelmChartConfig-ValuesContent.yaml"})
+
+			items := 0
+			// add projection and items for HelmChartConfig ValuesSecrets
+			for _, secret := range config.Spec.ValuesSecrets {
+				if len(secret.Keys) == 0 || secret.Name == "chart-values-"+config.Name {
+					continue
+				}
+				volumeProjection := corev1.VolumeProjection{
+					Secret: &corev1.SecretProjection{
+						Optional: ptr.To(secret.IgnoreUpdates),
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: secret.Name,
+						},
+					},
+				}
+				for _, key := range secret.Keys {
+					items++
+					volumeProjection.Secret.Items = append(volumeProjection.Secret.Items, corev1.KeyToPath{Key: key, Path: fmt.Sprintf("values-1-%03d-HelmChartConfig-ValuesSecret.yaml", items)})
+				}
+				valuesVolume.VolumeSource.Projected.Sources = append(valuesVolume.VolumeSource.Projected.Sources, volumeProjection)
+			}
+		}
 	}
 }
 
@@ -838,18 +968,62 @@ func contentConfigMap(chart *v1.HelmChart) *corev1.ConfigMap {
 	return configMap
 }
 
+// setValuesSecret adds a volume and volume mount to the job spec,
+// and returns a secret spec containing data from the chart.
 func setValuesSecret(job *batch.Job, chart *v1.HelmChart) *corev1.Secret {
 	secret := valuesSecret(chart)
 
-	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, corev1.Volume{
+	// create projected volume to hold collected secret keys
+	valuesVolume := corev1.Volume{
 		Name: "values",
 		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: secret.Name,
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{
+					{
+						Secret: &corev1.SecretProjection{
+							Items: []corev1.KeyToPath{},
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: secret.Name,
+							},
+						},
+					},
+				},
 			},
 		},
-	})
+	}
 
+	// add item for HelmChart ValuesContent
+	if chart.Spec.ValuesContent != "" {
+		valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items = append(valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items, corev1.KeyToPath{Key: "HelmChartValuesContent", Path: "values-0-000-HelmChart-ValuesContent.yaml"})
+	}
+	// add item for HelmChart RepoCA
+	if chart.Spec.RepoCA != "" {
+		valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items = append(valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items, corev1.KeyToPath{Key: "RepoCA", Path: "ca-file.pem"})
+	}
+
+	items := 0
+	// add projection and items for HelmChart ValuesSecrets
+	for _, secret := range chart.Spec.ValuesSecrets {
+		if len(secret.Keys) == 0 || secret.Name == "chart-values-"+chart.Name {
+			continue
+		}
+		volumeProjection := corev1.VolumeProjection{
+			Secret: &corev1.SecretProjection{
+				Optional: ptr.To(secret.IgnoreUpdates),
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: secret.Name,
+				},
+			},
+		}
+		for _, key := range secret.Keys {
+			items++
+			volumeProjection.Secret.Items = append(volumeProjection.Secret.Items, corev1.KeyToPath{Key: key, Path: fmt.Sprintf("values-0-%03d-HelmChart-ValuesSecret.yaml", items)})
+		}
+		valuesVolume.VolumeSource.Projected.Sources = append(valuesVolume.VolumeSource.Projected.Sources, volumeProjection)
+	}
+
+	// add values volume and volume mount
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, valuesVolume)
 	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
 		MountPath: "/config",
 		Name:      "values",
