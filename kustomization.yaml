@@ -1,8 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+sortOptions:
+  order: fifo
 resources:
-- manifests/deploy-cluster-scoped.yaml
-- manifests/deploy-namespaced.yaml
+- manifests/crd.yaml
+- manifests/ns.yaml
+- manifests/rbac.yaml
+- manifests/deployment.yaml
 images:
 - name: rancher/helm-controller
   newTag: v0.12.1

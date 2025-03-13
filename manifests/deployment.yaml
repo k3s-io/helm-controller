@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helm-controller
+  namespace: helm-controller
+  labels:
+    app: helm-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helm-controller
+  template:
+    metadata:
+      labels:
+        app: helm-controller
+    spec:
+      serviceAccountName: helm-controller
+      containers:
+      - name: helm-controller
+        image: rancher/helm-controller:v0.12.1
+        command: ["helm-controller"]
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: JOB_CLUSTER_ROLE
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName

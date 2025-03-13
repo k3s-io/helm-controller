@@ -19,17 +19,28 @@ reset-kustomization() {
 
 if [ "$ARCH" = "amd64" ]; then
   trap reset-kustomization EXIT
-  go run hack/crdgen.go > /tmp/crd.yaml
+  go run hack/crdgen.go > manifests/crd.yaml
   kustomize edit set image "rancher/helm-controller=${REPO}/helm-controller:${VERSION}"
-  kustomize build --reorder=none --output /tmp/
-  echo -n > ./dist/artifacts/deploy-cluster-scoped.yaml
-  for FILE in /tmp/crd.yaml /tmp/default_apps_v1_deployment_helm-controller.yaml; do
-    cat $FILE >> ./dist/artifacts/deploy-cluster-scoped.yaml
-    echo "---" >> ./dist/artifacts/deploy-cluster-scoped.yaml
-  done
-  echo -n > ./dist/artifacts/deploy-namespaced.yaml
-  for FILE in /tmp/crd.yaml /tmp/v1_namespace_helm-controller.yaml /tmp/helm-controller_apps_v1_deployment_helm-controller.yaml; do
-    cat $FILE >> ./dist/artifacts/deploy-namespaced.yaml
-    echo "---" >> ./dist/artifacts/deploy-namespaced.yaml
-  done
+  kustomize build > ./dist/artifacts/deploy-cluster-scoped.yaml
+
+  cat <<EOF >> kustomization.yaml
+patches:
+  - patch: |- 
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: helm-controller
+        namespace: helm-controller
+      spec:
+        template:
+          spec:
+            containers:
+            - name: helm-controller
+              env:
+              - name: NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+EOF
+  kustomize build > ./dist/artifacts/deploy-namespaced.yaml
 fi
