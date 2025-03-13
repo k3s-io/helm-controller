@@ -17,12 +17,12 @@ FROM golang:1.23-alpine3.21 AS dev
 ARG ARCH
 ENV ARCH=$ARCH
 RUN apk add --no-cache bash git gcc musl-dev curl
-RUN GOPROXY=direct go install golang.org/x/tools/cmd/goimports@gopls/v0.16.2
+RUN GOPROXY=direct go install golang.org/x/tools/cmd/goimports@gopls/v0.18.1
 RUN if [ "${ARCH}" != "arm" ]; then \
-    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.63.4; \
+    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.64.7; \
     fi
 RUN if [ "${ARCH}" = "amd64" ]; then \
-    go install sigs.k8s.io/kustomize/kustomize/v4@v4.5.7; \
+    go install sigs.k8s.io/kustomize/kustomize/v5@v5.6.0; \
     fi
 
 WORKDIR /src
