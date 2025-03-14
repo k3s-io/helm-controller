@@ -266,7 +266,16 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 }
 
 func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, error) {
-	if chart == nil {
+	if shouldManage, err := c.shouldManage(chart); err != nil {
+		return nil, err
+	} else if !shouldManage {
+		return nil, nil
+	}
+
+	switch chart.Spec.HelmVersion {
+	case "", "v3":
+	default:
+		// do not try to uninstall unsupported chart versions
 		return nil, nil
 	}
 
