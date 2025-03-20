@@ -1,0 +1,38 @@
+name: Build and Test
+on:
+  push:
+    branches:
+      - master
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test: 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Test
+        run: go test ./pkg/... -cover -tags=test
+  
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ARCH: amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build binary
+        run: make build
+    
+      - name: Validate
+        run: make validate
