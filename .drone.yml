@@ -55,7 +55,8 @@ steps:
 - name: docker-publish
   image: plugins/docker
   settings:
-    dockerfile: package/Dockerfile
+    dockerfile: Dockerfile
+    target: production
     username:
       from_secret: docker_username
     password:
@@ -122,7 +123,8 @@ steps:
 - name: docker-publish
   image: plugins/docker
   settings:
-    dockerfile: package/Dockerfile
+    dockerfile: Dockerfile
+    target: production
     username:
       from_secret: docker_username
     password:
@@ -191,7 +193,8 @@ steps:
   # latest tag is no longer available for ARM 32-bit
   image: plugins/docker:linux-arm
   settings:
-    dockerfile: package/Dockerfile
+    dockerfile: Dockerfile
+    target: production
     username:
       from_secret: docker_username
     password:
