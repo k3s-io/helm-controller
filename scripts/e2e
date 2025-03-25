@@ -15,7 +15,7 @@ fi
 setup_k8s(){
     # Drone launches each step in an isolated network. Check and see if there is another bridge network
     # that is not the default bridge network. If so, use that network for the k3s node.
-    BRIDGE_NETWORKS=$(docker network ls --filter driver=bridge --format '{{.Name}}' | grep -v bridge)
+    BRIDGE_NETWORKS=$(docker network ls --filter driver=bridge --format '{{.Name}}' | grep -v bridge || true)
     if [ -n "$BRIDGE_NETWORKS" ]; then
         K3S_NODE_NETWORK=$(echo "$BRIDGE_NETWORKS" | head -n 1)
         echo "Using network $K3S_NODE_NETWORK"
