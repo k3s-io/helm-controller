@@ -36,3 +36,9 @@ jobs:
     
       - name: Validate
         run: make validate
+      
+      - name: Package
+        run: make package
+
+      - name: E2E Test
+        run: ./scripts/e2e
