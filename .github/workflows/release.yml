@@ -31,6 +31,9 @@ jobs:
       - name: Build and package
         run: make
 
+      - name: Run E2E Tests
+        run: ./scripts/e2e
+
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
