@@ -873,6 +873,10 @@ func args(chart *v1.HelmChart) []string {
 		args = append(args, "--version", spec.Version)
 	}
 
+	if spec.SkipCRDs {
+		args = append(args, "--skip-crds")
+	}
+
 	for _, k := range keys(spec.Set) {
 		val := spec.Set[k]
 		if typedVal(val) {

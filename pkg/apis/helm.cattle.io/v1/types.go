@@ -35,6 +35,7 @@ type HelmChartSpec struct {
 	JobImage        string                        `json:"jobImage,omitempty"`
 	BackOffLimit    *int32                        `json:"backOffLimit,omitempty"`
 	Timeout         *metav1.Duration              `json:"timeout,omitempty"`
+	SkipCRDs        bool                          `json:"skipCRDs,omitempty"`
 	FailurePolicy   string                        `json:"failurePolicy,omitempty"`
 	AuthSecret      *corev1.LocalObjectReference  `json:"authSecret,omitempty"`
 

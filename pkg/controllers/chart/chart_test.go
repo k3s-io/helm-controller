@@ -151,6 +151,7 @@ func TestInstallArgs(t *testing.T) {
 	assert := assert.New(t)
 	stringArgs := strings.Join(args(NewChart()), " ")
 	assert.Equal("install "+
+		"--skip-crds "+
 		"--set-string acme.dnsProvider.name=cloudflare "+
 		"--set-string global.clusterCIDR=10.42.0.0/16\\,fd42::/48 "+
 		"--set-string global.systemDefaultRegistry= "+
@@ -171,7 +172,8 @@ func TestDeleteArgs(t *testing.T) {
 func NewChart() *v1.HelmChart {
 	return v1.NewHelmChart("kube-system", "traefik", v1.HelmChart{
 		Spec: v1.HelmChartSpec{
-			Chart: "stable/traefik",
+			Chart:    "stable/traefik",
+			SkipCRDs: true,
 			Set: map[string]intstr.IntOrString{
 				"rbac.enabled":                 intstr.Parse("true"),
 				"ssl.enabled":                  intstr.Parse("false"),
