@@ -1,3 +1,9 @@
+//go:generate go run pkg/codegen/cleanup/main.go
+//go:generate rm -rf pkg/generated pkg/crds/yaml/generated
+//go:generate go run pkg/codegen/main.go
+//go:generate controller-gen crd:generateEmbeddedObjectMeta=true paths=./pkg/apis/... output:crd:dir=./pkg/crds/yaml/generated
+//go:generate crd-ref-docs --config=crd-ref-docs.yaml --renderer=markdown --output-path=doc/helmchart.md
+
 package main
 
 import (

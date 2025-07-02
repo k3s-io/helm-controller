@@ -438,8 +438,8 @@ func (c *Controller) shouldManage(chart *v1.HelmChart) (bool, error) {
 func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job, []runtime.Object, error) {
 	// set a default failure policy
 	failurePolicy := DefaultFailurePolicy
-	if chart.Spec.FailurePolicy != "" {
-		failurePolicy = chart.Spec.FailurePolicy
+	if fp := string(chart.Spec.FailurePolicy); fp != "" {
+		failurePolicy = fp
 	}
 
 	// override default backOffLimit if specified
@@ -473,8 +473,8 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 		valuesSecretAddConfig(job, valuesSecret, config)
 
 		// Override the failure policy to what is provided in the HelmChartConfig
-		if config.Spec.FailurePolicy != "" {
-			failurePolicy = config.Spec.FailurePolicy
+		if fp := string(config.Spec.FailurePolicy); fp != "" {
+			failurePolicy = fp
 		}
 
 		// make sure that changes to HelmChart ValuesSecrets triger change to hash

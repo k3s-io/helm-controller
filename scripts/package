@@ -19,7 +19,7 @@ reset-kustomization() {
 
 if [ "$ARCH" = "amd64" ]; then
   trap reset-kustomization EXIT
-  go run hack/crdgen.go > manifests/crd.yaml
+  cat ./pkg/crds/yaml/*/* > manifests/crd.yaml
   kustomize edit set image "rancher/helm-controller=${REPO}/helm-controller:${VERSION}"
   kustomize build > ./dist/artifacts/deploy-cluster-scoped.yaml
 

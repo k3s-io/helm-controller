@@ -19,9 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	helmcattleiov1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	scheme "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,31 +37,32 @@ type HelmChartConfigsGetter interface {
 
 // HelmChartConfigInterface has methods to work with HelmChartConfig resources.
 type HelmChartConfigInterface interface {
-	Create(ctx context.Context, helmChartConfig *v1.HelmChartConfig, opts metav1.CreateOptions) (*v1.HelmChartConfig, error)
-	Update(ctx context.Context, helmChartConfig *v1.HelmChartConfig, opts metav1.UpdateOptions) (*v1.HelmChartConfig, error)
+	Create(ctx context.Context, helmChartConfig *helmcattleiov1.HelmChartConfig, opts metav1.CreateOptions) (*helmcattleiov1.HelmChartConfig, error)
+	Update(ctx context.Context, helmChartConfig *helmcattleiov1.HelmChartConfig, opts metav1.UpdateOptions) (*helmcattleiov1.HelmChartConfig, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.HelmChartConfig, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.HelmChartConfigList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*helmcattleiov1.HelmChartConfig, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*helmcattleiov1.HelmChartConfigList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.HelmChartConfig, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *helmcattleiov1.HelmChartConfig, err error)
 	HelmChartConfigExpansion
 }
 
 // helmChartConfigs implements HelmChartConfigInterface
 type helmChartConfigs struct {
-	*gentype.ClientWithList[*v1.HelmChartConfig, *v1.HelmChartConfigList]
+	*gentype.ClientWithList[*helmcattleiov1.HelmChartConfig, *helmcattleiov1.HelmChartConfigList]
 }
 
 // newHelmChartConfigs returns a HelmChartConfigs
 func newHelmChartConfigs(c *HelmV1Client, namespace string) *helmChartConfigs {
 	return &helmChartConfigs{
-		gentype.NewClientWithList[*v1.HelmChartConfig, *v1.HelmChartConfigList](
+		gentype.NewClientWithList[*helmcattleiov1.HelmChartConfig, *helmcattleiov1.HelmChartConfigList](
 			"helmchartconfigs",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.HelmChartConfig { return &v1.HelmChartConfig{} },
-			func() *v1.HelmChartConfigList { return &v1.HelmChartConfigList{} }),
+			func() *helmcattleiov1.HelmChartConfig { return &helmcattleiov1.HelmChartConfig{} },
+			func() *helmcattleiov1.HelmChartConfigList { return &helmcattleiov1.HelmChartConfigList{} },
+		),
 	}
 }
