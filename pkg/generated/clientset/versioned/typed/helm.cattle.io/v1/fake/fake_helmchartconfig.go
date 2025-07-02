@@ -19,116 +19,32 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	helmcattleiov1 "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned/typed/helm.cattle.io/v1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeHelmChartConfigs implements HelmChartConfigInterface
-type FakeHelmChartConfigs struct {
+// fakeHelmChartConfigs implements HelmChartConfigInterface
+type fakeHelmChartConfigs struct {
+	*gentype.FakeClientWithList[*v1.HelmChartConfig, *v1.HelmChartConfigList]
 	Fake *FakeHelmV1
-	ns   string
 }
 
-var helmchartconfigsResource = v1.SchemeGroupVersion.WithResource("helmchartconfigs")
-
-var helmchartconfigsKind = v1.SchemeGroupVersion.WithKind("HelmChartConfig")
-
-// Get takes name of the helmChartConfig, and returns the corresponding helmChartConfig object, and an error if there is any.
-func (c *FakeHelmChartConfigs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.HelmChartConfig, err error) {
-	emptyResult := &v1.HelmChartConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewGetActionWithOptions(helmchartconfigsResource, c.ns, name, options), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
+func newFakeHelmChartConfigs(fake *FakeHelmV1, namespace string) helmcattleiov1.HelmChartConfigInterface {
+	return &fakeHelmChartConfigs{
+		gentype.NewFakeClientWithList[*v1.HelmChartConfig, *v1.HelmChartConfigList](
+			fake.Fake,
+			namespace,
+			v1.SchemeGroupVersion.WithResource("helmchartconfigs"),
+			v1.SchemeGroupVersion.WithKind("HelmChartConfig"),
+			func() *v1.HelmChartConfig { return &v1.HelmChartConfig{} },
+			func() *v1.HelmChartConfigList { return &v1.HelmChartConfigList{} },
+			func(dst, src *v1.HelmChartConfigList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.HelmChartConfigList) []*v1.HelmChartConfig { return gentype.ToPointerSlice(list.Items) },
+			func(list *v1.HelmChartConfigList, items []*v1.HelmChartConfig) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1.HelmChartConfig), err
-}
-
-// List takes label and field selectors, and returns the list of HelmChartConfigs that match those selectors.
-func (c *FakeHelmChartConfigs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.HelmChartConfigList, err error) {
-	emptyResult := &v1.HelmChartConfigList{}
-	obj, err := c.Fake.
-		Invokes(testing.NewListActionWithOptions(helmchartconfigsResource, helmchartconfigsKind, c.ns, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1.HelmChartConfigList{ListMeta: obj.(*v1.HelmChartConfigList).ListMeta}
-	for _, item := range obj.(*v1.HelmChartConfigList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested helmChartConfigs.
-func (c *FakeHelmChartConfigs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewWatchActionWithOptions(helmchartconfigsResource, c.ns, opts))
-
-}
-
-// Create takes the representation of a helmChartConfig and creates it.  Returns the server's representation of the helmChartConfig, and an error, if there is any.
-func (c *FakeHelmChartConfigs) Create(ctx context.Context, helmChartConfig *v1.HelmChartConfig, opts metav1.CreateOptions) (result *v1.HelmChartConfig, err error) {
-	emptyResult := &v1.HelmChartConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewCreateActionWithOptions(helmchartconfigsResource, c.ns, helmChartConfig, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.HelmChartConfig), err
-}
-
-// Update takes the representation of a helmChartConfig and updates it. Returns the server's representation of the helmChartConfig, and an error, if there is any.
-func (c *FakeHelmChartConfigs) Update(ctx context.Context, helmChartConfig *v1.HelmChartConfig, opts metav1.UpdateOptions) (result *v1.HelmChartConfig, err error) {
-	emptyResult := &v1.HelmChartConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewUpdateActionWithOptions(helmchartconfigsResource, c.ns, helmChartConfig, opts), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.HelmChartConfig), err
-}
-
-// Delete takes name of the helmChartConfig and deletes it. Returns an error if one occurs.
-func (c *FakeHelmChartConfigs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewDeleteActionWithOptions(helmchartconfigsResource, c.ns, name, opts), &v1.HelmChartConfig{})
-
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeHelmChartConfigs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionActionWithOptions(helmchartconfigsResource, c.ns, opts, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1.HelmChartConfigList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched helmChartConfig.
-func (c *FakeHelmChartConfigs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.HelmChartConfig, err error) {
-	emptyResult := &v1.HelmChartConfig{}
-	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceActionWithOptions(helmchartconfigsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
-
-	if obj == nil {
-		return emptyResult, err
-	}
-	return obj.(*v1.HelmChartConfig), err
 }

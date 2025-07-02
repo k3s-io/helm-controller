@@ -18,6 +18,7 @@ ARG ARCH
 ENV ARCH=$ARCH
 RUN apk add --no-cache bash git gcc musl-dev curl
 RUN GOPROXY=direct go install golang.org/x/tools/cmd/goimports@gopls/v0.18.1
+RUN GOPROXY=direct go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.3
 RUN if [ "${ARCH}" != "arm" ]; then \
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.64.7; \
     fi

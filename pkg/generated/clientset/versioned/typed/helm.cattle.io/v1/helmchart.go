@@ -19,9 +19,9 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 
-	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	helmcattleiov1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	scheme "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -37,33 +37,34 @@ type HelmChartsGetter interface {
 
 // HelmChartInterface has methods to work with HelmChart resources.
 type HelmChartInterface interface {
-	Create(ctx context.Context, helmChart *v1.HelmChart, opts metav1.CreateOptions) (*v1.HelmChart, error)
-	Update(ctx context.Context, helmChart *v1.HelmChart, opts metav1.UpdateOptions) (*v1.HelmChart, error)
+	Create(ctx context.Context, helmChart *helmcattleiov1.HelmChart, opts metav1.CreateOptions) (*helmcattleiov1.HelmChart, error)
+	Update(ctx context.Context, helmChart *helmcattleiov1.HelmChart, opts metav1.UpdateOptions) (*helmcattleiov1.HelmChart, error)
 	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-	UpdateStatus(ctx context.Context, helmChart *v1.HelmChart, opts metav1.UpdateOptions) (*v1.HelmChart, error)
+	UpdateStatus(ctx context.Context, helmChart *helmcattleiov1.HelmChart, opts metav1.UpdateOptions) (*helmcattleiov1.HelmChart, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.HelmChart, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.HelmChartList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*helmcattleiov1.HelmChart, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*helmcattleiov1.HelmChartList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.HelmChart, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *helmcattleiov1.HelmChart, err error)
 	HelmChartExpansion
 }
 
 // helmCharts implements HelmChartInterface
 type helmCharts struct {
-	*gentype.ClientWithList[*v1.HelmChart, *v1.HelmChartList]
+	*gentype.ClientWithList[*helmcattleiov1.HelmChart, *helmcattleiov1.HelmChartList]
 }
 
 // newHelmCharts returns a HelmCharts
 func newHelmCharts(c *HelmV1Client, namespace string) *helmCharts {
 	return &helmCharts{
-		gentype.NewClientWithList[*v1.HelmChart, *v1.HelmChartList](
+		gentype.NewClientWithList[*helmcattleiov1.HelmChart, *helmcattleiov1.HelmChartList](
 			"helmcharts",
 			c.RESTClient(),
 			scheme.ParameterCodec,
 			namespace,
-			func() *v1.HelmChart { return &v1.HelmChart{} },
-			func() *v1.HelmChartList { return &v1.HelmChartList{} }),
+			func() *helmcattleiov1.HelmChart { return &helmcattleiov1.HelmChart{} },
+			func() *helmcattleiov1.HelmChartList { return &helmcattleiov1.HelmChartList{} },
+		),
 	}
 }

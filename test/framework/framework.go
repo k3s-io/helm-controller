@@ -13,14 +13,15 @@ import (
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
-	helmcrd "github.com/k3s-io/helm-controller/pkg/crd"
+	helmcrd "github.com/k3s-io/helm-controller/pkg/crds"
 	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/rancher/wrangler/v3/pkg/condition"
-	"github.com/rancher/wrangler/v3/pkg/crd"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	extclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -37,8 +38,8 @@ var (
 type Framework struct {
 	HelmClientSet *helmcln.Clientset
 	ClientSet     *kubernetes.Clientset
-	crdFactory    *crd.Factory
-	crds          []crd.CRD
+	ClientExt     *extclient.Clientset
+	crds          []*apiextv1.CustomResourceDefinition
 	Kubeconfig    string
 	Name          string
 	Namespace     string
@@ -96,14 +97,14 @@ func (f *Framework) beforeFramework() {
 	errExit("Failed to initiate helm client", err)
 	clientset, err := kubernetes.NewForConfig(config)
 	errExit("Failed to initiate a client set", err)
-	crdFactory, err := crd.NewFactoryFromClient(config)
-	errExit("Failed initiate factory client", err)
-	f.crds = helmcrd.List()
-	errExit("Failed to construct helm crd", err)
+	clientext, err := extclient.NewForConfig(config)
+	errExit("Failed to initiate a extension-apiserver client set", err)
+	f.crds, err = helmcrd.List()
+	errExit("Failed to construct helm crds", err)
 
 	f.HelmClientSet = helmcln
 	f.ClientSet = clientset
-	f.crdFactory = crdFactory
+	f.ClientExt = clientext
 	f.Name = common.Name
 	f.Namespace = common.Name
 

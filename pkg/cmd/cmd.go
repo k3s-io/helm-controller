@@ -3,22 +3,26 @@ package cmd
 import (
 	"flag"
 	"fmt"
-
-	"github.com/sirupsen/logrus"
-	"k8s.io/klog/v2"
-
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/k3s-io/helm-controller/pkg/controllers"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
-	"github.com/k3s-io/helm-controller/pkg/crd"
-	wcrd "github.com/rancher/wrangler/v3/pkg/crd"
+	"github.com/k3s-io/helm-controller/pkg/crds"
+	"github.com/rancher/wrangler/v3/pkg/crd"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
-	"github.com/rancher/wrangler/v3/pkg/ratelimit"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/klog/v2"
+)
+
+const (
+	// readyDuration time to wait for CRDs to be ready.
+	readyDuration = time.Minute * 1
 )
 
 type HelmController struct {
@@ -71,14 +75,19 @@ func (hc *HelmController) Run(app *cli.Context) error {
 	}
 
 	cfg := hc.GetNonInteractiveClientConfig()
-
-	clientConfig, err := cfg.ClientConfig()
+	rest, err := cfg.ClientConfig()
 	if err != nil {
 		return err
 	}
-	clientConfig.RateLimiter = ratelimit.None
+	client, err := clientset.NewForConfig(rest)
+	if err != nil {
+		return err
+	}
+
 	ctx := app.Context
-	if err := wcrd.Create(ctx, clientConfig, crd.List()); err != nil {
+
+	crds, err := crds.List()
+	if err != nil {
 		return err
 	}
 
@@ -90,6 +99,10 @@ func (hc *HelmController) Run(app *cli.Context) error {
 	}
 
 	if err := opts.Validate(); err != nil {
+		return err
+	}
+
+	if err := crd.BatchCreateCRDs(ctx, client.ApiextensionsV1().CustomResourceDefinitions(), nil, readyDuration, crds); err != nil {
 		return err
 	}
 
