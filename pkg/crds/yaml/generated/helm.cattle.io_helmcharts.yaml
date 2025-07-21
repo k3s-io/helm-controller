@@ -91,7 +91,7 @@ spec:
                 type: integer
               bootstrap:
                 description: Set to True if this chart is needed to bootstrap the
-                  cluster (Cloud Controller Manager, CNI, etc)
+                  cluster (Cloud Controller Manager, CNI, etc).
                 type: boolean
               chart:
                 description: |-
@@ -100,7 +100,7 @@ spec:
                 type: string
               chartContent:
                 description: |-
-                  Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`
+                  Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`.
                   Helm CLI positional argument/flag: `CHART`
                 type: string
               createNamespace:
@@ -610,6 +610,11 @@ spec:
                   Override simple Chart values. These take precedence over options set via valuesContent.
                   Helm CLI positional argument/flag: `--set`, `--set-string`
                 type: object
+              takeOwnership:
+                description: |-
+                  Set to True if helm should take ownership of existing resources when installing/upgrading the chart.
+                  Helm CLI positional argument/flag: `--take-ownership`
+                type: boolean
               targetNamespace:
                 description: |-
                   Helm Chart target namespace.
