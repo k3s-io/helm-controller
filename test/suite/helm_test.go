@@ -162,6 +162,70 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 		})
 	})
 
+	Context("When a HelmChart is created with spec.takeOwnership=true", func() {
+		var (
+			err     error
+			chart   *v1.HelmChart
+			service *corev1.Service
+		)
+		BeforeAll(func() {
+			service = &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "traefik-example",
+					Namespace: framework.Namespace,
+				},
+				Spec: corev1.ServiceSpec{
+					ClusterIP: "None",
+					Type:      corev1.ServiceTypeClusterIP,
+				},
+			}
+			service, err = framework.ClientSet.CoreV1().Services(framework.Namespace).Create(context.TODO(), service, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			chart = framework.NewHelmChart("traefik-example",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.TakeOwnership = true
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should create a release for the chart", func() {
+			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+		})
+
+		It("Should take ownership of existing resources", func() {
+			Eventually(func(g Gomega) {
+				service, err = framework.ClientSet.CoreV1().Services(framework.Namespace).Get(context.TODO(), service.Name, metav1.GetOptions{})
+				g.Expect(err).ToNot(HaveOccurred())
+				g.Expect(service).To(HaveField("ObjectMeta.Annotations", HaveKeyWithValue("meta.helm.sh/release-name", "traefik-example")))
+			}, 120*time.Second, 5*time.Second).Should(Succeed())
+		})
+
+		AfterAll(func() {
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
+			}, 120*time.Second, 5*time.Second).Should(Succeed())
+
+			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
 	Context("When a HelmChart specifies a timeout", func() {
 		var (
 			err   error
