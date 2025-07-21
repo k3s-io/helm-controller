@@ -146,8 +146,9 @@ _Appears in:_
 | `valuesContent` _string_ | Override complex Chart values via inline YAML content.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `valuesSecrets` _[SecretSpec](#secretspec) array_ | Override complex Chart values via references to external Secrets.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `helmVersion` _string_ | DEPRECATED. Helm version to use. Only v3 is currently supported. |  |  |
-| `bootstrap` _boolean_ | Set to True if this chart is needed to bootstrap the cluster (Cloud Controller Manager, CNI, etc) |  |  |
-| `chartContent` _string_ | Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`<br />Helm CLI positional argument/flag: `CHART` |  |  |
+| `bootstrap` _boolean_ | Set to True if this chart is needed to bootstrap the cluster (Cloud Controller Manager, CNI, etc). |  |  |
+| `takeOwnership` _boolean_ | Set to True if helm should take ownership of existing resources when installing/upgrading the chart.<br />Helm CLI positional argument/flag: `--take-ownership` |  |  |
+| `chartContent` _string_ | Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`.<br />Helm CLI positional argument/flag: `CHART` |  |  |
 | `jobImage` _string_ | Specify the image to use for tht helm job pod when installing or upgrading the helm chart. |  |  |
 | `backOffLimit` _integer_ | Specify the number of retries before considering the helm job failed. |  |  |
 | `timeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#duration-v1-meta)_ | Timeout for Helm operations.<br />Helm CLI positional argument/flag: `--timeout` |  |  |

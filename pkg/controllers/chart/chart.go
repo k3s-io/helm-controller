@@ -869,6 +869,10 @@ func args(chart *v1.HelmChart) []string {
 		args = append(args, "--create-namespace")
 	}
 
+	if spec.TakeOwnership {
+		args = append(args, "--take-ownership")
+	}
+
 	if spec.Version != "" {
 		args = append(args, "--version", spec.Version)
 	}

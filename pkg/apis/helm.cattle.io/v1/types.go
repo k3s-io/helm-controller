@@ -64,9 +64,12 @@ type HelmChartSpec struct {
 	ValuesSecrets []SecretSpec `json:"valuesSecrets,omitempty"`
 	// DEPRECATED. Helm version to use. Only v3 is currently supported.
 	HelmVersion string `json:"helmVersion,omitempty"`
-	// Set to True if this chart is needed to bootstrap the cluster (Cloud Controller Manager, CNI, etc)
+	// Set to True if this chart is needed to bootstrap the cluster (Cloud Controller Manager, CNI, etc).
 	Bootstrap bool `json:"bootstrap,omitempty"`
-	// Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`
+	// Set to True if helm should take ownership of existing resources when installing/upgrading the chart.
+	// Helm CLI positional argument/flag: `--take-ownership`
+	TakeOwnership bool `json:"takeOwnership,omitempty"`
+	// Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`.
 	// Helm CLI positional argument/flag: `CHART`
 	ChartContent string `json:"chartContent,omitempty"`
 	// Specify the image to use for tht helm job pod when installing or upgrading the helm chart.
