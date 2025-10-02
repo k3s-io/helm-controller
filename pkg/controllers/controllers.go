@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"time"
+	"net/url"
 
 	"github.com/k3s-io/helm-controller/pkg/controllers/chart"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
@@ -78,11 +79,17 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		chart.DefaultJobImage = opts.DefaultJobImage
 	}
 
+	host, port, err := getHostPortFromClientConfig(cfg);
+	if err != nil {
+		return err
+	}
+
 	chart.Register(ctx,
 		systemNamespace,
 		controllerName,
 		opts.JobClusterRole,
-		"6443",
+		host,
+		port,
 		appCtx.K8s,
 		appCtx.Apply,
 		recorder,
@@ -213,4 +220,17 @@ func newContext(cfg clientcmd.ClientConfig, systemNamespace string, opts common.
 			helm,
 		},
 	}, nil
+}
+
+func getHostPortFromClientConfig(cfg clientcmd.ClientConfig) (string, string, error) {
+	client, err := cfg.ClientConfig()
+	if err != nil {
+		return "", "", err
+	}
+	u, err := url.ParseRequestURI(client.Host)
+	if err != nil {
+		return "", "", err
+	}
+
+	return u.Hostname(), u.Port(), nil
 }
