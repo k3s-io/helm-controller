@@ -2,12 +2,17 @@ IMAGE_NAME ?= helm-controller
 ARCH ?= amd64
 
 .DEFAULT_GOAL := ci
-.PHONY: build test validate package clean
+.PHONY: build test validate package clean generate-crd
 
-build:
+build:  generate-crd
 	DOCKER_BUILDKIT=1 docker build \
 		--target binary \
 		--output type=local,dest=. .
+
+generate-crd:
+	DOCKER_BUILDKIT=1 docker build \
+		--target crds \
+		--output type=local,dest=./pkg/crds/yaml/generated .
 
 validate:
 	docker build --target dev --build-arg ARCH=$(ARCH) -t $(IMAGE_NAME)-dev .

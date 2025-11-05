@@ -5,6 +5,11 @@ RUN apk add --no-cache bash git gcc musl-dev
 WORKDIR /src
 COPY . .
 
+RUN GOPROXY=direct go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0
+RUN GOPROXY=direct go install github.com/elastic/crd-ref-docs@v0.2.0
+
+RUN go generate ./...
+
 RUN --mount=type=cache,id=gomod,target=/go/pkg/mod \
     --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
     ./scripts/build
@@ -16,9 +21,7 @@ COPY --from=builder /src/bin/helm-controller /bin/
 FROM golang:1.24-alpine3.22 AS dev
 ARG ARCH
 ENV ARCH=$ARCH
-RUN apk add --no-cache bash git gcc musl-dev curl
-RUN GOPROXY=direct go install golang.org/x/tools/cmd/goimports@gopls/v0.18.1
-RUN GOPROXY=direct go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.3
+RUN apk add --no-cache bash git curl
 RUN if [ "${ARCH}" != "arm" ]; then \
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.64.7; \
     fi
@@ -36,6 +39,9 @@ RUN ./scripts/package
 
 FROM scratch AS artifacts
 COPY --from=package /src/dist/artifacts /dist/artifacts
+
+FROM scratch AS crds
+COPY --from=builder /src/pkg/crds/yaml/generated/ /
 
 FROM alpine:3.22 AS production
 COPY bin/helm-controller /usr/bin/
