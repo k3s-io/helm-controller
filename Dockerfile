@@ -42,6 +42,7 @@ COPY --from=package /src/dist/artifacts /dist/artifacts
 
 FROM scratch AS crds
 COPY --from=builder /src/pkg/crds/yaml/generated/ /
+COPY --from=builder /src/doc/helmchart.md /tmp_doc/
 
 FROM alpine:3.22 AS production
 COPY bin/helm-controller /usr/bin/
