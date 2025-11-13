@@ -3,7 +3,7 @@ package crds
 import (
 	"embed"
 	"fmt"
-	"path/filepath"
+	"path"
 
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -44,7 +44,7 @@ func crdsFromDir(dirName string) (map[string]*apiextv1.CustomResourceDefinition,
 
 	allCRDs := map[string]*apiextv1.CustomResourceDefinition{}
 	for _, dirEntry := range crdFiles {
-		fullPath := filepath.Join(dirName, dirEntry.Name())
+		fullPath := path.Join(dirName, dirEntry.Name())
 		if dirEntry.IsDir() {
 			// if the entry is the dir recurse into that folder to get all crds
 			subCRDs, err := crdsFromDir(fullPath)
