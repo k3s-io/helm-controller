@@ -12,10 +12,7 @@ spec:
     listKind: HelmChartList
     plural: helmcharts
     shortNames:
-    - chart
     - hc
-    - hchart
-    - helm
     singular: helmchart
   scope: Namespaced
   versions:
