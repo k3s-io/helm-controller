@@ -11,6 +11,8 @@ spec:
     kind: HelmChartConfig
     listKind: HelmChartConfigList
     plural: helmchartconfigs
+    shortNames:
+    - hcc
     singular: helmchartconfig
   scope: Namespaced
   versions:
