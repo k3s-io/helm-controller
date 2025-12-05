@@ -29,3 +29,5 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.serviceAccountName
+        - name: DEFAULT_JOB_IMAGE
+          value: "ghcr.io/k3s-io/klipper-helm:v0.9.10-build20251111"
