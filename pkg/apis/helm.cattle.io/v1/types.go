@@ -12,6 +12,7 @@ type FailurePolicy string
 
 // +genclient
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=hc
 // +kubebuilder:printcolumn:name="Repo",type=string,JSONPath=`.spec.repo`
 // +kubebuilder:printcolumn:name="Chart",type=string,JSONPath=`.spec.chart`
 // +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.spec.version`
@@ -118,6 +119,7 @@ type HelmChartStatus struct {
 }
 
 // +genclient
+// +kubebuilder:resource:shortName=hcc
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // HelmChartConfig represents additional configuration for the installation of Helm chart release.

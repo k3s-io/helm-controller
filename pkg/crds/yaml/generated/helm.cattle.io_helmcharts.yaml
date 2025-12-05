@@ -11,6 +11,8 @@ spec:
     kind: HelmChart
     listKind: HelmChartList
     plural: helmcharts
+    shortNames:
+    - hc
     singular: helmchart
   scope: Namespaced
   versions:
