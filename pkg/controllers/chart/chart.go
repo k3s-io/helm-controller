@@ -3,6 +3,7 @@ package chart
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	corecontroller "github.com/rancher/wrangler/v3/pkg/generated/controllers/core/v1"
 	rbaccontroller "github.com/rancher/wrangler/v3/pkg/generated/controllers/rbac/v1"
 	"github.com/rancher/wrangler/v3/pkg/generic"
+	"github.com/rancher/wrangler/v3/pkg/merr"
 	"github.com/rancher/wrangler/v3/pkg/relatedresource"
 	batch "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -352,6 +354,20 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 		WithSetID("helm-chart-registration").
 		ApplyObjects(append(objs, expectedJob)...)
 	if err != nil {
+		// if err was caused by namespace termination, skip to not block indefinitely
+		// namespace deletion will remove the chart
+		var merrs merr.Errors
+		if errors.As(err, &merrs) {
+			// if err is merr.Errors, we need to check entries one by one
+			for _, e := range merrs {
+				if apierrors.IsForbidden(e) && apierrors.HasStatusCause(e, corev1.NamespaceTerminatingCause) {
+					return nil, nil
+				}
+			}
+		}
+		if apierrors.IsForbidden(err) && apierrors.HasStatusCause(err, corev1.NamespaceTerminatingCause) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
