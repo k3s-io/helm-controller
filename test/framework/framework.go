@@ -24,6 +24,7 @@ import (
 	extclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
@@ -284,4 +285,44 @@ func (f *Framework) GetHelmChartCondition(chart *v1.HelmChart, condition v1.Helm
 		}
 	}
 	return false
+}
+
+// CreateNamespace creates a namespace with the given name. If no error occurred and activate is true, the new namespace will be activated in Framework
+func (f *Framework) CreateNamespace(name string, activate bool) error {
+	_, err := f.ClientSet.CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}, metav1.CreateOptions{})
+	if err == nil && activate {
+		f.Namespace = name
+	}
+	return err
+}
+
+// DeleteNamespace removes the namespace with the given name from the cluster. If deactivate is true, the active namespace of Framework will be reset to default
+func (f *Framework) DeleteNamespace(name string, deactivate bool) error {
+	err := f.ClientSet.CoreV1().Namespaces().Delete(context.TODO(), name, metav1.DeleteOptions{})
+	if deactivate {
+		f.Namespace = common.Name
+	}
+	return err
+}
+
+// ListNamespaces returns a slice of namespaces from the cluster. If filterName is not empty, only matching namespaces will be returned
+func (f *Framework) ListNamespaces(filterName string) ([]corev1.Namespace, error) {
+	fieldSelector := ""
+	if filterName != "" {
+		fieldSelector = fields.SelectorFromSet(fields.Set{
+			"metadata.name": filterName,
+		}).String()
+	}
+	nsList, err := f.ClientSet.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{FieldSelector: fieldSelector})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return nsList.Items, nil
 }
