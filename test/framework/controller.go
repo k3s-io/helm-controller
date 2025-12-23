@@ -101,7 +101,6 @@ func (f *Framework) getDeployment() *appsv1.Deployment {
 							Image:   getImage(),
 							Command: []string{"helm-controller"},
 							Args: []string{
-								"--namespace", "helm-controller",
 								"--job-cluster-role", f.Name,
 							},
 						},

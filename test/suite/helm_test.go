@@ -547,6 +547,46 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 		})
 	})
 
+	Context("When a HelmChart resided within the target namespace", Label("filter"), func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+		)
+		BeforeAll(func() {
+			name := "traefik-within-ns-example"
+			err = framework.CreateNamespace(name, true)
+			Expect(err).ToNot(HaveOccurred())
+			chart = framework.NewHelmChart(name,
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should create a release for the chart", func() {
+			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+		})
+		It("Should be possible to delete the namespace", func() {
+			err = framework.DeleteNamespace(chart.Namespace, true)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(framework.ListNamespaces, 120*time.Second, 5*time.Second).WithArguments(chart.Namespace).Should(BeEmpty())
+		})
+		AfterAll(func() {
+			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
 	Context("When a HelmChart V2 is created", func() {
 		var (
 			err   error
