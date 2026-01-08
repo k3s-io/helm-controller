@@ -94,6 +94,7 @@ type Controller struct {
 	secretCache     corecontroller.SecretCache
 	apply           apply.Apply
 	recorder        record.EventRecorder
+	apiServerHost   string
 	apiServerPort   string
 }
 
@@ -102,6 +103,7 @@ func Register(
 	systemNamespace,
 	managedBy,
 	jobClusterRole string,
+	apiServerHost string,
 	apiServerPort string,
 	k8s kubernetes.Interface,
 	apply apply.Apply,
@@ -130,6 +132,7 @@ func Register(
 		jobCache:        jobCache,
 		secretCache:     sCache,
 		recorder:        recorder,
+		apiServerHost:   apiServerHost,
 		apiServerPort:   apiServerPort,
 	}
 
@@ -465,7 +468,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	}
 
 	// get the default job and configmaps
-	job, valuesSecret, contentConfigMap := job(chart, c.apiServerPort)
+	job, valuesSecret, contentConfigMap := job(chart, c.apiServerHost, c.apiServerPort)
 	objects := []metav1.Object{contentConfigMap, valuesSecret}
 
 	// make sure that changes to HelmChart ValuesSecrets triger change to hash
@@ -538,7 +541,7 @@ func chartConfigBySecret(conf *v1.HelmChartConfig) ([]string, error) {
 	return keys.UnsortedList(), nil
 }
 
-func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret, *corev1.ConfigMap) {
+func job(chart *v1.HelmChart, apiServerHost string, apiServerPort string) (*batch.Job, *corev1.Secret, *corev1.ConfigMap) {
 	jobImage := strings.TrimSpace(chart.Spec.JobImage)
 	if jobImage == "" {
 		jobImage = DefaultJobImage
@@ -744,7 +747,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 		job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, []corev1.EnvVar{
 			{
 				Name:  "KUBERNETES_SERVICE_HOST",
-				Value: "127.0.0.1"},
+				Value: apiServerHost},
 			{
 				Name:  "KUBERNETES_SERVICE_PORT",
 				Value: apiServerPort},
