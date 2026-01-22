@@ -128,6 +128,8 @@ func TestInstallJob(t *testing.T) {
 	assert.Equal("helm-install-traefik", job.Name)
 	assert.Equal(DefaultJobImage, job.Spec.Template.Spec.Containers[0].Image)
 	assert.Equal("helm-traefik", job.Spec.Template.Spec.ServiceAccountName)
+	assert.Equal("32", job.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu().String())
+	assert.Equal("32G", job.Spec.Template.Spec.Containers[0].Resources.Limits.Memory().String())
 }
 
 func TestDeleteJob(t *testing.T) {
