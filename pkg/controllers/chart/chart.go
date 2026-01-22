@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -634,6 +635,12 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 								{
 									Name:  "PLAIN_HTTP",
 									Value: fmt.Sprintf("%t", chart.Spec.PlainHTTP),
+								},
+							},
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("32"),
+									corev1.ResourceMemory: resource.MustParse("32G"),
 								},
 							},
 							SecurityContext: securityContext,
