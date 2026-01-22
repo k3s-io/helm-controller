@@ -638,6 +638,10 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 								},
 							},
 							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("0.1"),
+									corev1.ResourceMemory: resource.MustParse("10M"),
+								},
 								Limits: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse("32"),
 									corev1.ResourceMemory: resource.MustParse("32G"),
