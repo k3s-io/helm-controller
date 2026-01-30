@@ -80,6 +80,7 @@ var (
 		},
 		ReadOnlyRootFilesystem: ptr.To(true),
 	}
+	defaultPriorityClassName = "system-cluster-critical"
 )
 
 type Controller struct {
@@ -670,6 +671,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 					},
 					ServiceAccountName: fmt.Sprintf("helm-%s", chart.Name),
 					SecurityContext:    podSecurityContext,
+					PriorityClassName:  defaultPriorityClassName,
 					Volumes: []corev1.Volume{
 						{
 							Name: "klipper-helm",
