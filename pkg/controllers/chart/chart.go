@@ -339,9 +339,29 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 		return nil, nil
 	}
 
+	if chart.DeletionTimestamp == nil {
+		return nil, nil
+	}
+
 	expectedJob, objs, err := c.getJobAndRelatedResources(chart)
 	if err != nil {
 		return nil, err
+	}
+
+	// remove old helm-delete job if it was left
+	job, err := c.jobCache.Get(chart.Namespace, expectedJob.Name)
+	if err == nil && job.CreationTimestamp.Before(chart.DeletionTimestamp) {
+		err = c.jobs.Delete(chart.Namespace, expectedJob.Name, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
+		if err != nil {
+			if !apierrors.IsNotFound(err) {
+				return nil, fmt.Errorf("fail to delete old helm-delete job %w", err)
+			}
+			// if IsNotFound, continue
+		} else {
+			// wait old job to be removed
+			c.helms.EnqueueAfter(chart.Namespace, chart.Name, 1*time.Second)
+			return nil, nil
+		}
 	}
 
 	// note: on the logic of running an apply here...
@@ -378,7 +398,7 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 	time.Sleep(3 * time.Second)
 
 	// once we have run the above logic, we can now check if the job is complete
-	job, err := c.jobCache.Get(chart.Namespace, expectedJob.Name)
+	job, err = c.jobCache.Get(chart.Namespace, expectedJob.Name)
 	if apierrors.IsNotFound(err) {
 		// the above apply should have created it, something is wrong.
 		// if you are here, there must be a bug in the code.
@@ -396,7 +416,21 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 		chartCopy.Status.JobName = job.Name
 		newChart, err := c.helms.Update(chartCopy)
 		if err != nil {
-			return chart, fmt.Errorf("unable to update status of helm chart to add uninstall job name %s", chartCopy.Status.JobName)
+			// if chart is gone, clean resources
+			if apierrors.IsNotFound(err) || strings.Contains(err.Error(), "StorageError") {
+				// note: an empty apply removes all resources owned by this chart
+				err = generic.ConfigureApplyForObject(c.apply, chart, &generic.GeneratingHandlerOptions{
+					AllowClusterScoped: true,
+				}).
+					WithOwner(chart).
+					WithSetID("helm-chart-registration").
+					ApplyObjects()
+				if err != nil {
+					return nil, fmt.Errorf("chart is gone, but unable to remove resources tied to HelmChart %s/%s, %w", chart.Namespace, chart.Name, err)
+				}
+				return chart, nil
+			}
+			return chart, fmt.Errorf("unable to update status of helm chart to add uninstall job name %s, %w", chartCopy.Status.JobName, err)
 		}
 		return newChart, fmt.Errorf("waiting for delete of helm chart for %s by %s", key, job.Name)
 	}
@@ -412,7 +446,7 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 		WithSetID("helm-chart-registration").
 		ApplyObjects()
 	if err != nil {
-		return nil, fmt.Errorf("unable to remove resources tied to HelmChart %s/%s: %s", chart.Namespace, chart.Name, err)
+		return nil, fmt.Errorf("unable to remove resources tied to HelmChart %s/%s: %w", chart.Namespace, chart.Name, err)
 	}
 
 	return chart, nil
