@@ -38,18 +38,21 @@ import (
 )
 
 const (
-	Label         = "helmcharts.helm.cattle.io/chart"
-	Annotation    = "helmcharts.helm.cattle.io/configHash"
-	Unmanaged     = "helmcharts.helm.cattle.io/unmanaged"
 	SecretType    = "helmcharts.helm.cattle.io/values"
-	ManagedBy     = "helmcharts.cattle.io/managed-by"
 	CRDName       = "helmcharts.helm.cattle.io"
 	ConfigCRDName = "helmchartconfigs.helm.cattle.io"
 
 	TaintExternalCloudProvider = "node.cloudprovider.kubernetes.io/uninitialized"
-	LabelNodeRolePrefix        = "node-role.kubernetes.io/"
-	LabelControlPlaneSuffix    = "control-plane"
-	LabelEtcdSuffix            = "etcd"
+
+	AnnotationChartURL   = "helm.cattle.io/chart-url"
+	AnnotationConfigHash = "helmcharts.helm.cattle.io/configHash"
+	AnnotationManagedBy  = "helmcharts.cattle.io/managed-by"
+	AnnotationUnmanaged  = "helmcharts.helm.cattle.io/unmanaged"
+
+	LabelChartName          = "helmcharts.helm.cattle.io/chart"
+	LabelNodeRolePrefix     = "node-role.kubernetes.io/"
+	LabelControlPlaneSuffix = "control-plane"
+	LabelEtcdSuffix         = "etcd"
 
 	FailurePolicyReinstall = "reinstall"
 	FailurePolicyAbort     = "abort"
@@ -320,7 +323,8 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 	}
 
 	// emit an event to indicate that this Helm chart is being applied
-	c.recorder.Eventf(chart, corev1.EventTypeNormal, "ApplyJob", "Applying HelmChart using Job %s/%s", job.Namespace, job.Name)
+	annotations := map[string]string{AnnotationConfigHash: job.Spec.Template.ObjectMeta.Annotations[AnnotationConfigHash]}
+	c.recorder.AnnotatedEventf(chart, annotations, corev1.EventTypeNormal, "ApplyJob", "Applying HelmChart from %s using Job %s/%s ", chartSource(chart), job.Namespace, job.Name)
 
 	return append(objs, job), chartStatus, nil
 }
@@ -430,10 +434,10 @@ func (c *Controller) shouldManage(chart *v1.HelmChart) (bool, error) {
 		return false, nil
 	}
 	if chart.Annotations != nil {
-		if _, ok := chart.Annotations[Unmanaged]; ok {
+		if _, ok := chart.Annotations[AnnotationUnmanaged]; ok {
 			return false, nil
 		}
-		managedBy, ok := chart.Annotations[ManagedBy]
+		managedBy, ok := chart.Annotations[AnnotationManagedBy]
 		if ok {
 			// if the label exists, only handle this if the managedBy label matches that of this controller
 			return managedBy == c.managedBy, nil
@@ -444,10 +448,10 @@ func (c *Controller) shouldManage(chart *v1.HelmChart) (bool, error) {
 	chartCopy := chart.DeepCopy()
 	if chartCopy.Annotations == nil {
 		chartCopy.SetAnnotations(map[string]string{
-			ManagedBy: c.managedBy,
+			AnnotationManagedBy: c.managedBy,
 		})
 	} else {
-		chartCopy.Annotations[ManagedBy] = c.managedBy
+		chartCopy.Annotations[AnnotationManagedBy] = c.managedBy
 	}
 	_, err := c.helms.Update(chartCopy)
 	return false, err
@@ -573,7 +577,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 			Name:      fmt.Sprintf("helm-%s-%s", action, chart.Name),
 			Namespace: chart.Namespace,
 			Labels: map[string]string{
-				Label: chart.Name,
+				LabelChartName: chart.Name,
 			},
 		},
 		Spec: batch.JobSpec{
@@ -581,7 +585,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{},
 					Labels: map[string]string{
-						Label: chart.Name,
+						LabelChartName: chart.Name,
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -1174,7 +1178,7 @@ func hashObjects(job *batch.Job, objs ...metav1.Object) {
 		}
 	}
 
-	job.Spec.Template.ObjectMeta.Annotations[Annotation] = fmt.Sprintf("SHA256=%X", hash.Sum(nil))
+	job.Spec.Template.ObjectMeta.Annotations[AnnotationConfigHash] = fmt.Sprintf("SHA256=%X", hash.Sum(nil))
 }
 
 func setBackOffLimit(job *batch.Job, backOffLimit *int32) {
@@ -1189,4 +1193,36 @@ func setSecurityContext(job *batch.Job, chart *v1.HelmChart) {
 	if chart.Spec.SecurityContext != nil {
 		job.Spec.Template.Spec.Containers[0].SecurityContext = chart.Spec.SecurityContext
 	}
+}
+
+// chartSource returns a string describing the source of the chart:
+// chartContent, chart URL, or repo+version
+func chartSource(chart *v1.HelmChart) string {
+	if chart == nil {
+		return "<unknown>"
+	}
+
+	if chart.Spec.ChartContent != "" {
+		if url := chart.Annotations[AnnotationChartURL]; url != "" {
+			return fmt.Sprintf("inline spec.chartContent from %s", url)
+		}
+		return "inline spec.chartContent"
+	}
+
+	if strings.HasPrefix(chart.Spec.Chart, "oci://") {
+		if chart.Spec.Version != "" {
+			return fmt.Sprintf("version %s from OCI registry %s", chart.Spec.Version, chart.Spec.Chart)
+		}
+		return fmt.Sprintf("latest stable version from OCI registry %s", chart.Spec.Chart)
+	}
+
+	if strings.Contains(chart.Spec.Chart, "://") {
+		return chart.Spec.Chart
+	}
+
+	if chart.Spec.Version != "" {
+		return fmt.Sprintf("%s version %s from chart repository %s", chart.Spec.Chart, chart.Spec.Version, chart.Spec.Repo)
+	}
+
+	return fmt.Sprintf("latest stable version of %s from chart repository %s", chart.Spec.Chart, chart.Spec.Repo)
 }
