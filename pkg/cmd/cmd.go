@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/k3s-io/helm-controller/pkg/controllers"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	"github.com/k3s-io/helm-controller/pkg/crds"
@@ -39,25 +39,12 @@ type HelmController struct {
 	PprofPort       int
 }
 
-func (hc *HelmController) SetupDebug() error {
-	logging := flag.NewFlagSet("", flag.PanicOnError)
-	klog.InitFlags(logging)
+func (hc *HelmController) SetupLogging() (logr.Logger, error) {
+	klog.EnableContextualLogging(true)
 	if hc.Debug {
 		logrus.SetLevel(logrus.DebugLevel)
-		if err := logging.Parse([]string{
-			fmt.Sprintf("-v=%d", hc.DebugLevel),
-		}); err != nil {
-			return err
-		}
-	} else {
-		if err := logging.Parse([]string{
-			"-v=0",
-		}); err != nil {
-			return err
-		}
 	}
-
-	return nil
+	return common.NewLogrusSink(nil).AsLogr(), nil
 }
 
 func (hc *HelmController) Run(app *cli.Context) error {
@@ -69,9 +56,9 @@ func (hc *HelmController) Run(app *cli.Context) error {
 			log.Println(http.ListenAndServe(fmt.Sprintf("localhost:%d", hc.PprofPort), nil))
 		}()
 	}
-	err := hc.SetupDebug()
+	logger, err := hc.SetupLogging()
 	if err != nil {
-		panic("failed to setup debug logging: " + err.Error())
+		return err
 	}
 
 	cfg := hc.GetNonInteractiveClientConfig()
@@ -84,7 +71,7 @@ func (hc *HelmController) Run(app *cli.Context) error {
 		return err
 	}
 
-	ctx := app.Context
+	ctx := klog.NewContext(app.Context, logger)
 
 	crds, err := crds.List()
 	if err != nil {

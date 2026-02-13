@@ -92,7 +92,7 @@ func TestHashObjects(t *testing.T) {
 			b, _ := yaml.ToBytes([]runtime.Object{job})
 			t.Logf("Generated Job:\n%s", b)
 
-			assert.Equalf(test.hash, job.Spec.Template.ObjectMeta.Annotations[Annotation], "%s annotation value does not match", Annotation)
+			assert.Equalf(test.hash, job.Spec.Template.ObjectMeta.Annotations[AnnotationConfigHash], "%s annotation value does not match", AnnotationConfigHash)
 		})
 	}
 }

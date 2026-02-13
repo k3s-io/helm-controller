@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/k3s-io/helm-controller/pkg/controllers/chart"
@@ -23,7 +24,6 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/ratelimit"
 	"github.com/rancher/wrangler/v3/pkg/schemes"
 	"github.com/rancher/wrangler/v3/pkg/start"
-	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -33,6 +33,10 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+)
+
+const (
+	eventLogLevel klog.Level = 0
 )
 
 type appContext struct {
@@ -55,16 +59,17 @@ func (a *appContext) start(ctx context.Context) error {
 }
 
 func Register(ctx context.Context, systemNamespace, controllerName string, cfg clientcmd.ClientConfig, opts common.Options) error {
-	appCtx, err := newContext(cfg, systemNamespace, opts)
-	if err != nil {
-		return err
-	}
-
 	if len(controllerName) == 0 {
 		controllerName = "helm-controller"
 	}
 
-	appCtx.EventBroadcaster.StartLogging(logrus.Infof)
+	ctx = klog.NewContext(ctx, klog.FromContext(ctx).WithName(controllerName))
+	appCtx, err := newContext(ctx, cfg, systemNamespace, opts)
+	if err != nil {
+		return err
+	}
+
+	appCtx.EventBroadcaster.StartStructuredLogging(eventLogLevel)
 	appCtx.EventBroadcaster.StartRecordingToSink(&typedv1.EventSinkImpl{
 		Interface: appCtx.K8s.CoreV1().Events(systemNamespace),
 	})
@@ -99,21 +104,23 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		appCtx.Core.Secret().Cache(),
 	)
 
-	klog.Infof("Starting helm controller with %d threads", opts.Threadiness)
-	klog.Infof("Using cluster role '%s' for jobs managing helm charts", opts.JobClusterRole)
-	klog.Infof("Using default image '%s' for jobs managing helm charts", chart.DefaultJobImage)
+	logger := klog.FromContext(ctx)
+	logger.Info("Starting helm controller", "threads", opts.Threadiness)
+	logger.Info("Using cluster role for jobs managing helm charts", "jobClusterRole", opts.JobClusterRole)
+	logger.Info("Using default image for jobs managing helm charts", "defaultJobImage", chart.DefaultJobImage)
 
 	if len(systemNamespace) == 0 {
 		systemNamespace = metav1.NamespaceSystem
-		klog.Infof("Starting %s for all namespaces with lock in %s", controllerName, systemNamespace)
+		logger.Info("Starting global controller", "leaseNamespace", systemNamespace)
 	} else {
-		klog.Infof("Starting %s for namespace %s", controllerName, systemNamespace)
+		logger.Info("Starting namespaced controller", "namespace", systemNamespace)
 	}
 
 	controllerLockName := controllerName + "-lock"
 	leader.RunOrDie(ctx, systemNamespace, controllerLockName, appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {
-			klog.Fatal(err)
+			klog.Error(err, "failed to start controllers")
+			os.Exit(1)
 		}
 		klog.Info("All controllers have been started")
 	})
@@ -135,7 +142,7 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 	}), nil
 }
 
-func newContext(cfg clientcmd.ClientConfig, systemNamespace string, opts common.Options) (*appContext, error) {
+func newContext(ctx context.Context, cfg clientcmd.ClientConfig, systemNamespace string, opts common.Options) (*appContext, error) {
 	client, err := cfg.ClientConfig()
 	if err != nil {
 		return nil, err
@@ -146,7 +153,7 @@ func newContext(cfg clientcmd.ClientConfig, systemNamespace string, opts common.
 	if err != nil {
 		return nil, err
 	}
-	apply = apply.WithSetOwnerReference(false, false)
+	apply = apply.WithSetOwnerReference(false, false).WithContext(ctx)
 
 	k8s, err := kubernetes.NewForConfig(client)
 	if err != nil {
@@ -203,7 +210,7 @@ func newContext(cfg clientcmd.ClientConfig, systemNamespace string, opts common.
 		RBAC:  rbacv,
 
 		Apply:            apply,
-		EventBroadcaster: record.NewBroadcaster(),
+		EventBroadcaster: record.NewBroadcaster(record.WithContext(ctx)),
 
 		ClientConfig: cfg,
 		starters: []start.Starter{
