@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	//revive:disable:dot-imports
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	batchv1 "k8s.io/api/batch/v1"
@@ -499,7 +500,6 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 
 			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
-
 	})
 
 	Context("When a HelmChart creates a namespace", func() {

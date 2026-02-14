@@ -16,7 +16,7 @@ func main() {
 		Boilerplate:   "scripts/boilerplate.go.txt",
 		Groups: map[string]args.Group{
 			"helm.cattle.io": {
-				Types: []interface{}{
+				Types: []any{
 					v1.HelmChart{},
 					v1.HelmChartConfig{},
 				},

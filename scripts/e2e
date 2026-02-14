@@ -3,7 +3,7 @@ set -ex
 
 K3S_WAIT_TIME=15
 K3S_NODE_NAME=helmtest-node1
-K3S_VERSION=v1.30.2-k3s2
+K3S_VERSION=v1.34.4-k3s1
 
 cd $(dirname $0)/..
 
