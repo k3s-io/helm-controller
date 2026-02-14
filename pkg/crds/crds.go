@@ -2,6 +2,7 @@ package crds
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"path"
 
@@ -18,7 +19,7 @@ var (
 	//go:embed yaml
 	crdFS embed.FS
 
-	errDuplicate = fmt.Errorf("duplicate CRD")
+	errDuplicate = errors.New("duplicate CRD")
 )
 
 func List() ([]*apiextv1.CustomResourceDefinition, error) {

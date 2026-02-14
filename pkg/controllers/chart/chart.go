@@ -119,7 +119,6 @@ func Register(
 	cm corecontroller.ConfigMapController,
 	s corecontroller.SecretController,
 	sCache corecontroller.SecretCache) {
-
 	c := &Controller{
 		systemNamespace: systemNamespace,
 		jobClusterRole:  jobClusterRole,
@@ -184,7 +183,7 @@ func Register(
 func (c *Controller) jobPatcher(namespace, name string, pt types.PatchType, data []byte) (runtime.Object, error) {
 	err := c.jobs.Delete(namespace, name, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
 	if err == nil || apierrors.IsNotFound(err) {
-		return nil, fmt.Errorf("create or replace job")
+		return nil, errors.New("create or replace job")
 	}
 	return nil, err
 }

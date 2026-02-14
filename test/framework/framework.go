@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -108,7 +109,6 @@ func (f *Framework) beforeFramework() {
 	f.ClientExt = clientext
 	f.Name = common.Name
 	f.Namespace = common.Name
-
 }
 
 func errExit(msg string, err error) {
@@ -192,7 +192,7 @@ func (f *Framework) UpdateHelmChart(chart *v1.HelmChart, namespace string) (upda
 	}); err != nil {
 		updated = nil
 	}
-	return
+	return updated, err
 }
 
 func (f *Framework) DeleteHelmChart(name, namespace string) error {
@@ -246,7 +246,7 @@ func (f *Framework) ListChartPods(chart *v1.HelmChart, appName string) ([]corev1
 
 func (f *Framework) GetJob(chart *v1.HelmChart) (*batchv1.Job, error) {
 	if chart.Status.JobName == "" {
-		return nil, fmt.Errorf("waiting for job name to be populated")
+		return nil, errors.New("waiting for job name to be populated")
 	}
 	r, err := f.ClientSet.BatchV1().Jobs(chart.Namespace).Get(context.TODO(), chart.Status.JobName, metav1.GetOptions{})
 	if err != nil {
