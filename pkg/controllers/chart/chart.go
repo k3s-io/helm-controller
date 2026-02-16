@@ -12,6 +12,7 @@ import (
 	"time"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	"github.com/k3s-io/helm-controller/pkg/controllers/extjson"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/pkg/remove"
 	"github.com/rancher/wrangler/v3/pkg/apply"
@@ -798,6 +799,9 @@ func valuesSecret(chart *v1.HelmChart) *corev1.Secret {
 	if chart.Spec.ValuesContent != "" {
 		secret.Data["HelmChartValuesContent"] = []byte(chart.Spec.ValuesContent)
 	}
+	if !extjson.IsEmpty(chart.Spec.Values) {
+		secret.Data["HelmChartValues"] = []byte(extjson.TryToYAML(chart.Spec.Values))
+	}
 	if chart.Spec.RepoCA != "" {
 		secret.Data["RepoCA"] = []byte(chart.Spec.RepoCA)
 	}
@@ -808,38 +812,47 @@ func valuesSecret(chart *v1.HelmChart) *corev1.Secret {
 func valuesSecretAddConfig(job *batch.Job, secret *corev1.Secret, config *v1.HelmChartConfig) {
 	if config.Spec.ValuesContent != "" {
 		secret.Data["HelmChartConfigValuesContent"] = []byte(config.Spec.ValuesContent)
+	}
+	if !extjson.IsEmpty(config.Spec.Values) {
+		secret.Data["HelmChartConfigValues"] = []byte(extjson.TryToYAML(config.Spec.Values))
+	}
 
-		// modify projected volume to hold collected secret keys
-		for i := range job.Spec.Template.Spec.Volumes {
-			if job.Spec.Template.Spec.Volumes[i].Name != "values" {
+	// modify projected volumes to hold collected secret keys
+	for i := range job.Spec.Template.Spec.Volumes {
+		if job.Spec.Template.Spec.Volumes[i].Name != "values" {
+			continue
+		}
+		valuesVolume := &job.Spec.Template.Spec.Volumes[i]
+
+		// the first source in this volume is always the managed secret for this HelmChart
+		// add item for HelmChartConfig ValuesContent
+		if config.Spec.ValuesContent != "" {
+			valuesVolume.Projected.Sources[0].Secret.Items = append(valuesVolume.Projected.Sources[0].Secret.Items, corev1.KeyToPath{Key: "HelmChartConfigValuesContent", Path: "values-1-000-HelmChartConfig-ValuesContent.yaml"})
+		}
+		// add item for HelmChartConfig Values
+		if !extjson.IsEmpty(config.Spec.Values) {
+			valuesVolume.Projected.Sources[0].Secret.Items = append(valuesVolume.Projected.Sources[0].Secret.Items, corev1.KeyToPath{Key: "HelmChartConfigValues", Path: "values-1-001-HelmChartConfig-Values.yaml"})
+		}
+
+		items := 1
+		// add projection and items for HelmChartConfig ValuesSecrets
+		for _, secret := range config.Spec.ValuesSecrets {
+			if len(secret.Keys) == 0 || secret.Name == "chart-values-"+config.Name {
 				continue
 			}
-			valuesVolume := &job.Spec.Template.Spec.Volumes[i]
-
-			// add item for HelmChartConfig ValuesContent
-			// the first source in this volume is always the managed secret for this HelmChart
-			valuesVolume.Projected.Sources[0].Secret.Items = append(valuesVolume.Projected.Sources[0].Secret.Items, corev1.KeyToPath{Key: "HelmChartConfigValuesContent", Path: "values-1-000-HelmChartConfig-ValuesContent.yaml"})
-
-			items := 0
-			// add projection and items for HelmChartConfig ValuesSecrets
-			for _, secret := range config.Spec.ValuesSecrets {
-				if len(secret.Keys) == 0 || secret.Name == "chart-values-"+config.Name {
-					continue
-				}
-				volumeProjection := corev1.VolumeProjection{
-					Secret: &corev1.SecretProjection{
-						Optional: ptr.To(secret.IgnoreUpdates),
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: secret.Name,
-						},
+			volumeProjection := corev1.VolumeProjection{
+				Secret: &corev1.SecretProjection{
+					Optional: ptr.To(secret.IgnoreUpdates),
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: secret.Name,
 					},
-				}
-				for _, key := range secret.Keys {
-					items++
-					volumeProjection.Secret.Items = append(volumeProjection.Secret.Items, corev1.KeyToPath{Key: key, Path: fmt.Sprintf("values-1-%03d-HelmChartConfig-ValuesSecret.yaml", items)})
-				}
-				valuesVolume.VolumeSource.Projected.Sources = append(valuesVolume.VolumeSource.Projected.Sources, volumeProjection)
+				},
 			}
+			for _, key := range secret.Keys {
+				items++
+				volumeProjection.Secret.Items = append(volumeProjection.Secret.Items, corev1.KeyToPath{Key: key, Path: fmt.Sprintf("values-1-%03d-HelmChartConfig-ValuesSecret.yaml", items)})
+			}
+			valuesVolume.VolumeSource.Projected.Sources = append(valuesVolume.VolumeSource.Projected.Sources, volumeProjection)
 		}
 	}
 }
@@ -1032,12 +1045,16 @@ func setValuesSecret(job *batch.Job, chart *v1.HelmChart) *corev1.Secret {
 	if chart.Spec.ValuesContent != "" {
 		valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items = append(valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items, corev1.KeyToPath{Key: "HelmChartValuesContent", Path: "values-0-000-HelmChart-ValuesContent.yaml"})
 	}
+	// add item for HelmChart Values
+	if !extjson.IsEmpty(chart.Spec.Values) {
+		valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items = append(valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items, corev1.KeyToPath{Key: "HelmChartValues", Path: "values-0-001-HelmChart-Values.yaml"})
+	}
 	// add item for HelmChart RepoCA
 	if chart.Spec.RepoCA != "" {
 		valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items = append(valuesVolume.VolumeSource.Projected.Sources[0].Secret.Items, corev1.KeyToPath{Key: "RepoCA", Path: "ca-file.pem"})
 	}
 
-	items := 0
+	items := 1
 	// add projection and items for HelmChart ValuesSecrets
 	for _, secret := range chart.Spec.ValuesSecrets {
 		if len(secret.Keys) == 0 || secret.Name == "chart-values-"+chart.Name {

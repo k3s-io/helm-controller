@@ -56,6 +56,11 @@ spec:
                 - abort
                 - reinstall
                 type: string
+              values:
+                description: |-
+                  Override complex Chart values via structured YAML. Takes precedence over options set via valuesContent.
+                  Helm CLI positional argument/flag: `--values`
+                x-kubernetes-preserve-unknown-fields: true
               valuesContent:
                 description: |-
                   Override complex Chart values via inline YAML content.

@@ -2,6 +2,7 @@ package framework
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -10,10 +11,12 @@ import (
 	"net/http"
 	"os"
 
+	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/util/retry"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
+	"github.com/k3s-io/helm-controller/pkg/controllers/extjson"
 	helmcrd "github.com/k3s-io/helm-controller/pkg/crds"
 	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
 	"github.com/onsi/ginkgo/v2"
@@ -118,7 +121,7 @@ func errExit(msg string, err error) {
 	logrus.Panicf("%s: %v", msg, err)
 }
 
-func (f *Framework) NewHelmChart(name, chart, version, helmVersion, valuesContent string, set map[string]intstr.IntOrString) *v1.HelmChart {
+func (f *Framework) NewHelmChart(name, chart, version, helmVersion, values, valuesContent string, set map[string]intstr.IntOrString) *v1.HelmChart {
 	return &v1.HelmChart{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -131,6 +134,7 @@ func (f *Framework) NewHelmChart(name, chart, version, helmVersion, valuesConten
 			Chart:         chart,
 			Version:       version,
 			Repo:          "",
+			Values:        extjson.TryFromYAML(values),
 			ValuesContent: valuesContent,
 			Set:           set,
 			HelmVersion:   helmVersion,
@@ -138,7 +142,7 @@ func (f *Framework) NewHelmChart(name, chart, version, helmVersion, valuesConten
 	}
 }
 
-func (f *Framework) NewHelmChartConfig(name, valuesContent string) *v1.HelmChartConfig {
+func (f *Framework) NewHelmChartConfig(name, values, valuesContent string) *v1.HelmChartConfig {
 	return &v1.HelmChartConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -148,6 +152,7 @@ func (f *Framework) NewHelmChartConfig(name, valuesContent string) *v1.HelmChart
 			},
 		},
 		Spec: v1.HelmChartConfigSpec{
+			Values:        extjson.TryFromYAML(values),
 			ValuesContent: valuesContent,
 		},
 	}
@@ -173,6 +178,67 @@ func (f *Framework) ListReleases(chart *v1.HelmChart) ([]corev1.Secret, error) {
 	}
 
 	return secretList.Items, nil
+}
+
+// GetDeployedRelease fetches the secret containing meta data about the currently deployed helm release.
+func (f *Framework) GetDeployedRelease(chart *v1.HelmChart) (*corev1.Secret, error) {
+	labelSelector := labels.SelectorFromSet(labels.Set{
+		"owner":  "helm",
+		"name":   chart.Name,
+		"status": "deployed",
+	})
+	namespace := chart.Namespace
+	if chart.Spec.TargetNamespace != "" {
+		namespace = chart.Spec.TargetNamespace
+	}
+
+	secretList, err := f.ClientSet.CoreV1().Secrets(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector.String()})
+	if err != nil {
+		return nil, err
+	}
+	if len(secretList.Items) != 1 {
+		return nil, fmt.Errorf("expected 1 deployed release, found %d", len(secretList.Items))
+	}
+
+	return &secretList.Items[0], nil
+}
+
+// GetReleaseConfig decodes the base64 encoded gzipped helm release data stored in the secret.
+func (f *Framework) GetReleaseConfig(release *corev1.Secret) (map[string]any, error) {
+	data, ok := release.Data["release"]
+	if !ok {
+		return nil, errors.New("no release data found in secret")
+	}
+	decoded, err := base64.StdEncoding.DecodeString(string(data))
+	if err != nil {
+		return nil, err
+	}
+	reader, err := gzip.NewReader(bytes.NewReader(decoded))
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	jsonBytes, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	releaseData := make(map[string]any)
+	if err = json.Unmarshal(jsonBytes, &releaseData); err != nil {
+		return nil, err
+	}
+	config, ok := releaseData["config"].(map[string]any)
+	if !ok {
+		return nil, errors.New("no config found in release data")
+	}
+	return config, nil
+}
+
+func (f *Framework) GetDeployedReleaseConfig(chart *v1.HelmChart) (map[string]any, error) {
+	release, err := f.GetDeployedRelease(chart)
+	if err != nil {
+		return nil, err
+	}
+	return f.GetReleaseConfig(release)
 }
 
 func (f *Framework) CreateHelmChart(chart *v1.HelmChart, namespace string) (*v1.HelmChart, error) {

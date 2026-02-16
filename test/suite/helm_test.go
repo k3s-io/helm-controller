@@ -32,6 +32,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -73,6 +74,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -125,6 +127,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -187,6 +190,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -238,6 +242,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -292,6 +297,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -336,6 +342,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"1.86.1",
 				"v3",
 				"",
+				"",
 				nil)
 			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
@@ -344,11 +351,82 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should create a new release when the HelmChartConfig is created", func() {
-			chartConfig = framework.NewHelmChartConfig(chart.Name, "metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n")
+			chartConfig = framework.NewHelmChartConfig(chart.Name, "", "metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n")
 			chartConfig, err = framework.CreateHelmChartConfig(chartConfig, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+		})
+		AfterAll(func() {
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = framework.DeleteHelmChartConfig(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
+			}, 120*time.Second, 5*time.Second).Should(Succeed())
+
+			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
+	Context("When a HelmChart has values", func() {
+		var (
+			err         error
+			chart       *v1.HelmChart
+			chartConfig *v1.HelmChartConfig
+		)
+		BeforeAll(func() {
+			chart = framework.NewHelmChart("traefik-example",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"test:\n  1: chart.values\n  2: chart.values\n  4: chart.values",
+				"test:\n  1: chart.valuesContent\n  2: chart.valuesContent\n  3: chart.valuesContent\n  4: chart.valuesContent\n  5: chart.valuesContent",
+				map[string]intstr.IntOrString{
+					"test.1": intstr.FromString("chart.set"),
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should create a release for the chart with all values in the expected precedence (set > values > valuesContent)", func() {
+			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+
+			config, err := framework.GetDeployedReleaseConfig(chart)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config).To(Equal(map[string]any{
+				"test": map[string]any{
+					"1": "chart.set",
+					"2": "chart.values",
+					"3": "chart.valuesContent",
+					"4": "chart.values",
+					"5": "chart.valuesContent",
+				},
+			}))
+		})
+		It("Should override/merge values from HelmChartConfig (chart.set > config.values > config.valuesContent > chart.values > chart.valuesContent)", func() {
+			chartConfig = framework.NewHelmChartConfig(chart.Name,
+				"test:\n  1: config.values\n  2: config.values",
+				"test:\n  1: config.valuesContent\n  2: config.valuesContent\n  3: config.valuesContent",
+			)
+			chartConfig, err = framework.CreateHelmChartConfig(chartConfig, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+
+			config, err := framework.GetDeployedReleaseConfig(chart)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config).To(Equal(map[string]any{
+				"test": map[string]any{
+					"1": "chart.set",
+					"2": "config.values",
+					"3": "config.valuesContent",
+					"4": "chart.values",
+					"5": "chart.valuesContent",
+				},
+			}))
 		})
 		AfterAll(func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
@@ -388,6 +466,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"",
 				nil)
 
@@ -442,6 +521,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"1.86.1",
 				"v3",
 				"",
+				"",
 				nil)
 			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
@@ -463,7 +543,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			userSecret, err = framework.ClientSet.CoreV1().Secrets(userSecret.Namespace).Create(context.TODO(), userSecret, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			chartConfig = framework.NewHelmChartConfig(chart.Name, "")
+			chartConfig = framework.NewHelmChartConfig(chart.Name, "", "")
 			chartConfig.Spec.ValuesSecrets = []v1.SecretSpec{
 				{
 					Name: userSecret.Name,
@@ -512,6 +592,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -560,6 +641,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -597,6 +679,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v2",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -648,6 +731,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -700,6 +784,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -751,6 +836,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -808,6 +894,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -859,6 +946,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {
@@ -919,6 +1007,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				"stable/traefik",
 				"1.86.1",
 				"v3",
+				"",
 				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
 				map[string]intstr.IntOrString{
 					"rbac.enabled": {

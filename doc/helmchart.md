@@ -115,6 +115,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `values` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#json-v1-apiextensions-k8s-io)_ | Override complex Chart values via structured YAML. Takes precedence over options set via valuesContent.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `valuesContent` _string_ | Override complex Chart values via inline YAML content.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `valuesSecrets` _[SecretSpec](#secretspec) array_ | Override complex Chart values via references to external Secrets.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `failurePolicy` _[FailurePolicy](#failurepolicy)_ | Configures handling of failed chart installation or upgrades.<br />- `reinstall` will perform a clean uninstall and reinstall of the chart.<br />- `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error. | reinstall | Enum: [abort reinstall] <br /> |
@@ -142,7 +143,8 @@ _Appears in:_
 | `repo` _string_ | Helm Chart repository URL.<br />Helm CLI positional argument/flag: `--repo` |  |  |
 | `repoCA` _string_ | Verify certificates of HTTPS-enabled servers using this CA bundle. Should be a string containing one or more PEM-encoded CA Certificates.<br />Helm CLI positional argument/flag: `--ca-file` |  |  |
 | `repoCAConfigMap` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#localobjectreference-v1-core)_ | Reference to a ConfigMap containing CA Certificates to be be trusted by Helm. Can be used along with or instead of `.spec.repoCA`<br />Helm CLI positional argument/flag: `--ca-file` |  |  |
-| `set` _object (keys:string, values:[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#intorstring-intstr-util))_ | Override simple Chart values. These take precedence over options set via valuesContent.<br />Helm CLI positional argument/flag: `--set`, `--set-string` |  |  |
+| `set` _object (keys:string, values:[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#intorstring-intstr-util))_ | Override simple Chart values. These take precedence over options set via values or valuesContent.<br />Helm CLI positional argument/flag: `--set`, `--set-string` |  |  |
+| `values` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#json-v1-apiextensions-k8s-io)_ | Override complex Chart values via structured YAML. Takes precedence over options set via valuesContent.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `valuesContent` _string_ | Override complex Chart values via inline YAML content.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `valuesSecrets` _[SecretSpec](#secretspec) array_ | Override complex Chart values via references to external Secrets.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `helmVersion` _string_ | DEPRECATED. Helm version to use. Only v3 is currently supported. |  |  |

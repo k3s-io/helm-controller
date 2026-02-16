@@ -609,7 +609,7 @@ spec:
                   - type: string
                   x-kubernetes-int-or-string: true
                 description: |-
-                  Override simple Chart values. These take precedence over options set via valuesContent.
+                  Override simple Chart values. These take precedence over options set via values or valuesContent.
                   Helm CLI positional argument/flag: `--set`, `--set-string`
                 type: object
               takeOwnership:
@@ -627,6 +627,11 @@ spec:
                   Timeout for Helm operations.
                   Helm CLI positional argument/flag: `--timeout`
                 type: string
+              values:
+                description: |-
+                  Override complex Chart values via structured YAML. Takes precedence over options set via valuesContent.
+                  Helm CLI positional argument/flag: `--values`
+                x-kubernetes-preserve-unknown-fields: true
               valuesContent:
                 description: |-
                   Override complex Chart values via inline YAML content.
