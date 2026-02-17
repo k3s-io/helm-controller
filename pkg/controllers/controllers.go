@@ -119,10 +119,11 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 	controllerLockName := controllerName + "-lock"
 	leader.RunOrDie(ctx, systemNamespace, controllerLockName, appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {
-			klog.Error(err, "failed to start controllers")
+			logger.Error(err, "failed to start controllers")
+			//revive:disable-next-line:deep-exit
 			os.Exit(1)
 		}
-		klog.Info("All controllers have been started")
+		logger.Info("All controllers have been started")
 	})
 
 	return nil
