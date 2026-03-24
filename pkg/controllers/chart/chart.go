@@ -3,11 +3,15 @@ package chart
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,12 +29,14 @@ import (
 	batch "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes"
@@ -39,6 +45,7 @@ import (
 )
 
 const (
+	ReleaseType   = "helm.sh/release.v1"
 	SecretType    = "helmcharts.helm.cattle.io/values"
 	CRDName       = "helmcharts.helm.cattle.io"
 	ConfigCRDName = "helmchartconfigs.helm.cattle.io"
@@ -68,6 +75,7 @@ var (
 	DefaultJobImage      = "rancher/klipper-helm:latest"
 	DefaultFailurePolicy = FailurePolicyReinstall
 	defaultBackOffLimit  = ptr.To(int32(1000))
+	jobSettleTime        = time.Second * 3
 
 	defaultPodSecurityContext = &corev1.PodSecurityContext{
 		RunAsNonRoot: ptr.To(true),
@@ -97,6 +105,7 @@ type Controller struct {
 	confCache       helmcontroller.HelmChartConfigCache
 	jobs            batchcontroller.JobController
 	jobCache        batchcontroller.JobCache
+	secrets         corecontroller.SecretController
 	secretCache     corecontroller.SecretCache
 	apply           apply.Apply
 	recorder        record.EventRecorder
@@ -133,6 +142,7 @@ func Register(
 		confCache:       confCache,
 		jobs:            jobs,
 		jobCache:        jobCache,
+		secrets:         s,
 		secretCache:     sCache,
 		recorder:        recorder,
 		apiServerPort:   apiServerPort,
@@ -141,7 +151,7 @@ func Register(
 	c.apply = apply.
 		WithCacheTypes(helms, confs, jobs, crbs, sas, cm, s).
 		WithStrictCaching().
-		WithPatcher(jobs.GroupVersionKind(), c.jobPatcher)
+		WithReconciler(jobs.GroupVersionKind(), c.reconcileJob)
 
 	helmCache.AddIndexer(chartBySecretIndex, chartBySecret)
 	confCache.AddIndexer(chartConfigBySecretIndex, chartConfigBySecret)
@@ -184,12 +194,26 @@ func Register(
 	)
 }
 
-func (c *Controller) jobPatcher(namespace, name string, pt types.PatchType, data []byte) (runtime.Object, error) {
-	err := c.jobs.Delete(namespace, name, &metav1.DeleteOptions{PropagationPolicy: &deletePolicy})
-	if err == nil || apierrors.IsNotFound(err) {
-		return nil, errors.New("create or replace job")
+// reconcileJob triggers recreation of the Job if the pod template spec changes.
+// If the Job is too new, the operation is reenqueued.
+func (c *Controller) reconcileJob(oldObj, newObj runtime.Object) (bool, error) {
+	oldJob, err := objectToJob(oldObj)
+	if err != nil {
+		return false, err
 	}
-	return nil, err
+	newJob, err := objectToJob(newObj)
+	if err != nil {
+		return false, err
+	}
+	if templateChanged(oldJob, newJob) {
+		minAge := metav1.Now().Add(-jobSettleTime)
+		// object timestamps are stripped before reconciling; get object from cache for creation time check
+		if cacheJob, err := c.jobCache.Get(oldJob.Namespace, oldJob.Name); err == nil && cacheJob.CreationTimestamp.After(minAge) {
+			return false, errors.New("wait for Job to settle before replacing")
+		}
+		return false, apply.ErrReplace
+	}
+	return false, nil
 }
 
 func (c *Controller) resolveHelmChartFromHelmChartConfig(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
@@ -344,7 +368,7 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 	}
 
 	expectedJob, objs, err := c.getJobAndRelatedResources(chart)
-	if err != nil {
+	if err != nil && !errors.Is(err, generic.ErrSkip) {
 		return nil, err
 	}
 
@@ -352,7 +376,7 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 	// if the uninstall job does not exist, it will create it
 	// if the job already exists and it is uninstalling, nothing will change since there's no need to patch
 	// if the job already exists but is tied to an install or upgrade, there will be a need to patch so
-	// the apply will execute the jobPatcher, which will delete the install/upgrade job and recreate a uninstall job
+	// the apply will execute the jobReconciler, which will delete the install/upgrade job and recreate a uninstall job
 	err = generic.ConfigureApplyForObject(c.apply, chart, &generic.GeneratingHandlerOptions{
 		AllowClusterScoped: true,
 	}).
@@ -379,7 +403,7 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 
 	// sleep for 3 seconds to give the job time to perform the helm install
 	// before emitting any errors
-	time.Sleep(3 * time.Second)
+	time.Sleep(jobSettleTime)
 
 	// once we have run the above logic, we can now check if the job is complete
 	job, err := c.jobCache.Get(chart.Namespace, expectedJob.Name)
@@ -398,7 +422,7 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 		// temporarily recreate the chart, but keep the deletion timestamp
 		chartCopy := chart.DeepCopy()
 		chartCopy.Status.JobName = job.Name
-		newChart, err := c.helms.Update(chartCopy)
+		newChart, err := c.helms.UpdateStatus(chartCopy)
 		if err != nil {
 			return chart, fmt.Errorf("unable to update status of helm chart to add uninstall job name %s", chartCopy.Status.JobName)
 		}
@@ -485,10 +509,8 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 
 	// check if a HelmChartConfig is registered for this Helm chart
 	config, err := c.confCache.Get(chart.Namespace, chart.Name)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, nil, err
-		}
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, nil, err
 	}
 	if config != nil {
 		// Merge the values into the HelmChart's values
@@ -516,12 +538,47 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	setBackOffLimit(job, backOffLimit)
 	hashObjects(job, objects...)
 
+	if oldJob, err := c.jobCache.Get(job.Namespace, job.Name); err == nil && !templateChanged(oldJob, job) {
+		return job, nil, generic.ErrSkip
+	}
+
+	// inject the current chart release into the job env; the helm job pod is
+	// expected to validate this, and not take action if it does not match
+	// Note that this is injected AFTER the hash check, so that the hash ignores changes to the revision.
+	if revision, err := c.getChartReleaseRevision(chart); err != nil && !apierrors.IsNotFound(err) {
+		return nil, nil, err
+	} else if revision != 0 {
+		for i := range job.Spec.Template.Spec.Containers {
+			job.Spec.Template.Spec.Containers[i].Env = append(job.Spec.Template.Spec.Containers[i].Env, corev1.EnvVar{
+				Name:  "EXPECTED_RELEASE_REVISION",
+				Value: strconv.FormatInt(revision, 10),
+			})
+		}
+	}
+
 	return job, []runtime.Object{
 		valuesSecret,
 		contentConfigMap,
 		serviceAccount(chart),
 		roleBinding(chart, c.jobClusterRole),
 	}, nil
+}
+
+func (c *Controller) getChartReleaseRevision(chart *v1.HelmChart) (int64, error) {
+	var version int64
+	fs := fields.OneTermEqualSelector("type", ReleaseType)
+	ls := labels.Set{"owner": "helm", "name": chart.Name}.AsSelector()
+	secretList, err := c.secrets.List(chart.Spec.TargetNamespace, metav1.ListOptions{FieldSelector: fs.String(), LabelSelector: ls.String()})
+	if err != nil {
+		return version, err
+	}
+	for _, secret := range secretList.Items {
+		if sv, err := strconv.ParseInt(secret.ObjectMeta.Labels["version"], 10, 64); err == nil && sv > version {
+			version = sv
+		}
+	}
+
+	return version, nil
 }
 
 func chartBySecret(chart *v1.HelmChart) ([]string, error) {
@@ -1027,6 +1084,7 @@ func setValuesSecret(job *batch.Job, chart *v1.HelmChart) *corev1.Secret {
 		Name: "values",
 		VolumeSource: corev1.VolumeSource{
 			Projected: &corev1.ProjectedVolumeSource{
+				DefaultMode: ptr.To(int32(0644)),
 				Sources: []corev1.VolumeProjection{
 					{
 						Secret: &corev1.SecretProjection{
@@ -1095,6 +1153,7 @@ func setContentConfigMap(job *batch.Job, chart *v1.HelmChart) *corev1.ConfigMap 
 		Name: "content",
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
+				DefaultMode: ptr.To(int32(0644)),
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: configMap.Name,
 				},
@@ -1116,7 +1175,8 @@ func setAuthSecret(job *batch.Job, chart *v1.HelmChart) {
 			Name: "auth",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: secret.Name,
+					DefaultMode: ptr.To(int32(0644)),
+					SecretName:  secret.Name,
 				},
 			},
 		})
@@ -1134,7 +1194,8 @@ func setDockerRegistrySecret(job *batch.Job, chart *v1.HelmChart) {
 			Name: "dockerconfig",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: secret.Name,
+					DefaultMode: ptr.To(int32(0644)),
+					SecretName:  secret.Name,
 					Items: []corev1.KeyToPath{{
 						Key:  ".dockerconfigjson",
 						Path: "config.json",
@@ -1156,6 +1217,7 @@ func setRepoCAConfigMap(job *batch.Job, chart *v1.HelmChart) {
 			Name: "ca-files",
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
+					DefaultMode:          ptr.To(int32(0644)),
 					LocalObjectReference: *cm,
 				},
 			},
@@ -1241,4 +1303,44 @@ func chartSource(chart *v1.HelmChart) string {
 	}
 
 	return fmt.Sprintf("latest stable version of %s from chart repository %s", chart.Spec.Chart, chart.Spec.Repo)
+}
+
+// templateChanged returns true if the job's pod template has changed.
+// Labels and fields managed by Kubernetes are ignored.
+// The EXPECTED_RELEASE_REVISION env var is ignored, as this is expected to change once the chart has been updated,
+// and MUST NOT trigger a re-run of the pod or we will end up in a loop.
+func templateChanged(oldJob, newJob *batch.Job) bool {
+	oldPodTemplate := oldJob.Spec.Template.DeepCopy()
+	newPodTemplate := newJob.Spec.Template.DeepCopy()
+	for _, template := range []*corev1.PodTemplateSpec{oldPodTemplate, newPodTemplate} {
+		template.Spec.DeprecatedServiceAccount = template.Spec.ServiceAccountName
+		template.Spec.TerminationGracePeriodSeconds = nil
+		template.Spec.DNSPolicy = corev1.DNSClusterFirst
+		template.Spec.SchedulerName = ""
+		template.Labels = nil
+		for c := range template.Spec.Containers {
+			template.Spec.Containers[c].TerminationMessagePath = corev1.TerminationMessagePathDefault
+			template.Spec.Containers[c].TerminationMessagePolicy = corev1.TerminationMessageReadFile
+			template.Spec.Containers[c].Env = slices.DeleteFunc(template.Spec.Containers[c].Env, func(e corev1.EnvVar) bool {
+				return e.Name == "EXPECTED_RELEASE_REVISION"
+			})
+		}
+	}
+	return !equality.Semantic.DeepEqual(oldPodTemplate, newPodTemplate)
+}
+
+func objectToJob(obj runtime.Object) (*batch.Job, error) {
+	if job, ok := obj.(*batch.Job); ok {
+		return job, nil
+	}
+	uObj, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return nil, fmt.Errorf("expected unstructured but got %v", reflect.TypeOf(obj))
+	}
+	bytes, err := uObj.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	job := &batch.Job{}
+	return job, json.Unmarshal(bytes, job)
 }
