@@ -23,7 +23,17 @@ ARG ARCH
 ENV ARCH=$ARCH
 RUN apk add --no-cache bash git curl
 RUN if [ "${ARCH}" != "arm" ]; then \
-    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- v2.7.2; \
+    GOLANGCI_VERSION=v2.7.2 && \
+    case "${ARCH}" in \
+        amd64) GOLANGCI_SHA256="ce46a1f1d890e7b667259f70bb236297f5cf8791a9b6b98b41b283d93b5b6e88" ;; \
+        arm64) GOLANGCI_SHA256="7028e810837722683dab679fb121336cfa303fecff39dfe248e3e36bc18d941b" ;; \
+        *) echo "Unsupported architecture for golangci-lint: ${ARCH}" && exit 1 ;; \
+    esac && \
+    cd /tmp && \
+    curl -fsSL "https://github.com/golangci/golangci-lint/releases/download/${GOLANGCI_VERSION}/golangci-lint-${GOLANGCI_VERSION#v}-linux-${ARCH}.tar.gz" -o golangci-lint.tar.gz && \
+    echo "${GOLANGCI_SHA256}  golangci-lint.tar.gz" | sha256sum -c - && \
+    tar --strip-components=1 -xzf golangci-lint.tar.gz -C /usr/local/bin golangci-lint-${GOLANGCI_VERSION#v}-linux-${ARCH}/golangci-lint && \
+    rm -f /tmp/golangci-lint.tar.gz; \
     fi
 RUN if [ "${ARCH}" = "amd64" ]; then \
     go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1; \
