@@ -5,8 +5,8 @@ RUN apk add --no-cache bash git gcc musl-dev
 WORKDIR /src
 COPY . .
 
-RUN GOPROXY=direct go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0
-RUN GOPROXY=direct go install github.com/elastic/crd-ref-docs@v0.2.0
+RUN GOPROXY=direct go install sigs.k8s.io/controller-tools/cmd/controller-gen@257e3a04698a16ea834c49f457de7704474f9a74
+RUN GOPROXY=direct go install github.com/elastic/crd-ref-docs@7de989285647936ac62ea1ff8887e25e0056bc58
 
 RUN go generate ./...
 
@@ -36,7 +36,7 @@ RUN if [ "${ARCH}" != "arm" ]; then \
     rm -f /tmp/golangci-lint.tar.gz; \
     fi
 RUN if [ "${ARCH}" = "amd64" ]; then \
-    go install sigs.k8s.io/kustomize/kustomize/v5@v5.8.1; \
+    go install sigs.k8s.io/kustomize/kustomize/v5@1155ccbe3c1fc56cbbd82847899f86c7b824e005; \
     fi
 
 WORKDIR /src
