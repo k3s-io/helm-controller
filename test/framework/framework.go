@@ -158,7 +158,7 @@ func (f *Framework) NewHelmChartConfig(name, values, valuesContent string) *v1.H
 	}
 }
 
-func (f *Framework) ListReleases(chart *v1.HelmChart) ([]corev1.Secret, error) {
+func (f *Framework) ListSecretReleases(chart *v1.HelmChart) ([]corev1.Secret, error) {
 	labelSelector := labels.SelectorFromSet(labels.Set{
 		"owner": "helm",
 		"name":  chart.Name,
@@ -178,6 +178,27 @@ func (f *Framework) ListReleases(chart *v1.HelmChart) ([]corev1.Secret, error) {
 	}
 
 	return secretList.Items, nil
+}
+
+func (f *Framework) ListConfigMapReleases(chart *v1.HelmChart) ([]corev1.ConfigMap, error) {
+	labelSelector := labels.SelectorFromSet(labels.Set{
+		"owner": "helm",
+		"name":  chart.Name,
+	})
+	namespace := chart.Namespace
+	if chart.Spec.TargetNamespace != "" {
+		namespace = chart.Spec.TargetNamespace
+	}
+
+	cmList, err := f.ClientSet.CoreV1().ConfigMaps(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector.String()})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return cmList.Items, nil
 }
 
 // GetDeployedRelease fetches the secret containing meta data about the currently deployed helm release.
