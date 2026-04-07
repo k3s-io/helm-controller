@@ -126,6 +126,22 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              driver:
+                default: secret
+                description: |-
+                  Helm storage driver to use for this chart's release metadata.
+                  `secret` stores releases in Kubernetes Secrets (default).
+                  `configmap` stores releases in ConfigMaps.
+                  This field is effectively immutable after the first install; changing the storage backend is not a supported migration path.
+                  Helm CLI environment variable: `HELM_DRIVER`
+                enum:
+                - secret
+                - configmap
+                type: string
+                x-kubernetes-validations:
+                - message: driver is immutable after creation
+                  optionalOldSelf: true
+                  rule: '!oldSelf.hasValue() || self == oldSelf.value()'
               failurePolicy:
                 default: reinstall
                 description: |-

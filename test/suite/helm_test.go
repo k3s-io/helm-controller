@@ -49,7 +49,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 		})
 
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 
 		AfterAll(func() {
@@ -60,7 +60,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -90,7 +90,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should create a new release when the version is changed", func() {
 			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
@@ -100,7 +100,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(chart.Spec.Version).To(Equal("1.86.2"))
 
 			// check for 2 releases, and pod with image specified by new chart version
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
 			Eventually(framework.ListChartPods, 120*time.Second, 5*time.Second).WithArguments(chart, "traefik").Should(
 				ContainElement(HaveField("Status.ContainerStatuses", ContainElements(HaveField("Image", ContainSubstring("docker.io/rancher/library-traefik:1.7.20"))))),
 			)
@@ -113,7 +113,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -143,7 +143,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should create a new release when the values are changed", func() {
 			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
@@ -152,7 +152,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(chart.Spec.Set["replicas"]).To(Equal(intstr.FromString("3")))
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
 		})
 		AfterAll(func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
@@ -162,7 +162,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -208,7 +208,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 		})
 
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 
 		It("Should take ownership of existing resources", func() {
@@ -227,7 +227,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -260,7 +260,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should have the correct timeout", func() {
 			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
@@ -283,7 +283,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -316,7 +316,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		AfterAll(func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
@@ -326,7 +326,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -348,14 +348,14 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should create a new release when the HelmChartConfig is created", func() {
 			chartConfig = framework.NewHelmChartConfig(chart.Name, "", "metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n")
 			chartConfig, err = framework.CreateHelmChartConfig(chartConfig, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
 		})
 		AfterAll(func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
@@ -368,7 +368,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -392,7 +392,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart with all values in the expected precedence (set > values > valuesContent)", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 
 			config, err := framework.GetDeployedReleaseConfig(chart)
 			Expect(err).ToNot(HaveOccurred())
@@ -414,7 +414,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			chartConfig, err = framework.CreateHelmChartConfig(chartConfig, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
 
 			config, err := framework.GetDeployedReleaseConfig(chart)
 			Expect(err).ToNot(HaveOccurred())
@@ -439,7 +439,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -481,7 +481,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should create a new release when the secret is modified", func() {
 			userSecret.Data = nil
@@ -491,7 +491,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			userSecret, err = framework.ClientSet.CoreV1().Secrets(userSecret.Namespace).Update(context.TODO(), userSecret, metav1.UpdateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
 		})
 		AfterAll(func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
@@ -501,7 +501,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 
 			err = framework.ClientSet.CoreV1().Secrets(userSecret.Namespace).Delete(context.TODO(), userSecret.Name, metav1.DeleteOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -527,7 +527,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should create a new release when the HelmChartConfig is created", func() {
 			userSecret = &corev1.Secret{
@@ -554,7 +554,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			chartConfig, err = framework.CreateHelmChartConfig(chartConfig, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
 		})
 		It("Should create a new release when the secret is modified", func() {
 			userSecret.Data = nil
@@ -564,7 +564,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			userSecret, err = framework.ClientSet.CoreV1().Secrets(userSecret.Namespace).Update(context.TODO(), userSecret, metav1.UpdateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(3))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(3))
 		})
 
 		AfterAll(func() {
@@ -578,7 +578,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -610,7 +610,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart in the target namespace", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(
 				And(
 					HaveLen(1),
 					ContainElement(HaveField("ObjectMeta.Namespace", Equal(chart.Spec.TargetNamespace))),
@@ -624,7 +624,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -657,7 +657,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should be possible to delete the namespace", func() {
 			err = framework.DeleteNamespace(chart.Namespace, true)
@@ -665,7 +665,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Eventually(framework.ListNamespaces, 120*time.Second, 5*time.Second).WithArguments(chart.Namespace).Should(BeEmpty())
 		})
 		AfterAll(func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -714,7 +714,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -748,7 +748,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should have correct job backOff Limit", func() {
 			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
@@ -766,7 +766,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -800,7 +800,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should have correct job backOff Limit", func() {
 			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
@@ -818,7 +818,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -855,7 +855,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should have correct pod securityContext", func() {
 			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
@@ -873,7 +873,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -910,7 +910,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should have correct pod securityContext", func() {
 			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
@@ -928,7 +928,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -965,7 +965,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should have correct container securityContext", func() {
 			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
@@ -983,7 +983,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 
@@ -1023,7 +1023,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should create a release for the chart", func() {
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
 		})
 		It("Should have correct container securityContext", func() {
 			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
@@ -1041,7 +1041,78 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 
-			Eventually(framework.ListReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
+	Context("When a HelmChart uses the configmap storage driver", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+		)
+		BeforeAll(func() {
+			chart = framework.NewHelmChart("traefik-configmap-driver",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.Driver = "configmap"
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should create a release stored as a ConfigMap", func() {
+			Eventually(framework.ListConfigMapReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+		})
+
+		It("Should have no release stored as a Secret", func() {
+			Consistently(framework.ListSecretReleases, 10*time.Second, 2*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+
+		It("Should create a new ConfigMap release when values are changed", func() {
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			chart.Spec.Set["replicas"] = intstr.FromString("3")
+			chart, err = framework.UpdateHelmChart(chart, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(framework.ListConfigMapReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+		})
+
+		It("Should set HELM_DRIVER=configmap on the job", func() {
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			job, err := framework.GetJob(chart)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(job.Spec.Template.Spec.Containers[0].Env).To(ContainElement(
+				And(
+					HaveField("Name", "HELM_DRIVER"),
+					HaveField("Value", "configmap"),
+				),
+			))
+		})
+
+		AfterAll(func() {
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func(g Gomega) {
+				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
+			}, 120*time.Second, 5*time.Second).Should(Succeed())
+
+			Eventually(framework.ListConfigMapReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
 })
