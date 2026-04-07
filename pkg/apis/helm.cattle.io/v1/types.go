@@ -13,6 +13,9 @@ import (
 // +kubebuilder:validation:Enum={"abort","reinstall"}
 type FailurePolicy string
 
+// +kubebuilder:validation:Enum={"secret","configmap"}
+type HelmDriver string
+
 // +genclient
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=hc
@@ -108,6 +111,14 @@ type HelmChartSpec struct {
 	PodSecurityContext *corev1.PodSecurityContext `json:"podSecurityContext,omitempty"`
 	// custom SecurityContext for the helm job pod.
 	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`
+	// Helm storage driver to use for this chart's release metadata.
+	// `secret` stores releases in Kubernetes Secrets (default).
+	// `configmap` stores releases in ConfigMaps.
+	// This field is effectively immutable after the first install; changing the storage backend is not a supported migration path.
+	// Helm CLI environment variable: `HELM_DRIVER`
+	// +kubebuilder:default=secret
+	// +kubebuilder:validation:XValidation:rule="!oldSelf.hasValue() || self == oldSelf.value()",message="driver is immutable after creation",optionalOldSelf=true
+	Driver HelmDriver `json:"driver,omitempty"`
 }
 
 // HelmChartStatus represents the resulting state from processing HelmChart events

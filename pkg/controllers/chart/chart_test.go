@@ -11,7 +11,10 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -197,6 +200,146 @@ func TestDeleteArgs(t *testing.T) {
 	chart.DeletionTimestamp = &deleteTime
 	stringArgs := strings.Join(args(chart), " ")
 	assert.Equal("delete", stringArgs)
+}
+
+func TestDriverField(t *testing.T) {
+	tests := []struct {
+		name     string
+		driver   v1.HelmDriver
+		expected string
+	}{
+		{"default driver", "", "secret"},
+		{"secret driver", "secret", "secret"},
+		{"configmap driver", "configmap", "configmap"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			chart := NewChart()
+			chart.Spec.Driver = tt.driver
+			j, _, _ := job(chart, "6443")
+			envs := j.Spec.Template.Spec.Containers[0].Env
+			var helmDriver string
+			for _, e := range envs {
+				if e.Name == "HELM_DRIVER" {
+					helmDriver = e.Value
+					break
+				}
+			}
+			assert.Equal(tt.expected, helmDriver)
+		})
+	}
+}
+
+func TestMaxReleaseRevision(t *testing.T) {
+	tests := []struct {
+		name     string
+		objects  []metav1.ObjectMeta
+		expected int64
+	}{
+		{"no objects", nil, 0},
+		{"single revision", []metav1.ObjectMeta{
+			{Labels: map[string]string{"version": "1"}},
+		}, 1},
+		{"multiple revisions returns max", []metav1.ObjectMeta{
+			{Labels: map[string]string{"version": "1"}},
+			{Labels: map[string]string{"version": "3"}},
+			{Labels: map[string]string{"version": "2"}},
+		}, 3},
+		{"invalid version label ignored", []metav1.ObjectMeta{
+			{Labels: map[string]string{"version": "abc"}},
+			{Labels: map[string]string{"version": "2"}},
+		}, 2},
+		{"missing version label ignored", []metav1.ObjectMeta{
+			{Labels: map[string]string{"owner": "helm"}},
+			{Labels: map[string]string{"version": "5"}},
+		}, 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
+			assert.Equal(tt.expected, maxReleaseRevision(tt.objects))
+		})
+	}
+}
+
+func TestGetChartReleaseRevision(t *testing.T) {
+	t.Run("configmap driver uses configmap storage", func(t *testing.T) {
+		assert := assert.New(t)
+		var called bool
+		c := &Controller{
+			configMaps: fakeConfigMapLister{
+				list: func(namespace string, opts metav1.ListOptions) (*corev1.ConfigMapList, error) {
+					called = true
+					assert.Equal("target-ns", namespace)
+					assert.Equal(labels.Set{"owner": "helm", "name": "traefik"}.AsSelector().String(), opts.LabelSelector)
+					assert.Empty(opts.FieldSelector)
+					return &corev1.ConfigMapList{
+						Items: []corev1.ConfigMap{
+							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "1"}}},
+							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "3"}}},
+						},
+					}, nil
+				},
+			},
+		}
+
+		chart := NewChart()
+		chart.Spec.Driver = "configmap"
+		chart.Spec.TargetNamespace = "target-ns"
+
+		revision, err := c.getChartReleaseRevision(chart)
+		assert.NoError(err)
+		assert.True(called)
+		assert.Equal(int64(3), revision)
+	})
+
+	t.Run("default driver uses secret storage", func(t *testing.T) {
+		assert := assert.New(t)
+		var called bool
+		c := &Controller{
+			secrets: fakeSecretLister{
+				list: func(namespace string, opts metav1.ListOptions) (*corev1.SecretList, error) {
+					called = true
+					assert.Equal("target-ns", namespace)
+					assert.Equal(labels.Set{"owner": "helm", "name": "traefik"}.AsSelector().String(), opts.LabelSelector)
+					assert.Equal(fields.OneTermEqualSelector("type", ReleaseType).String(), opts.FieldSelector)
+					return &corev1.SecretList{
+						Items: []corev1.Secret{
+							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "2"}}},
+							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "5"}}},
+						},
+					}, nil
+				},
+			},
+		}
+
+		chart := NewChart()
+		chart.Spec.TargetNamespace = "target-ns"
+
+		revision, err := c.getChartReleaseRevision(chart)
+		assert.NoError(err)
+		assert.True(called)
+		assert.Equal(int64(5), revision)
+	})
+}
+
+type fakeConfigMapLister struct {
+	list func(namespace string, opts metav1.ListOptions) (*corev1.ConfigMapList, error)
+}
+
+func (f fakeConfigMapLister) List(namespace string, opts metav1.ListOptions) (*corev1.ConfigMapList, error) {
+	return f.list(namespace, opts)
+}
+
+type fakeSecretLister struct {
+	list func(namespace string, opts metav1.ListOptions) (*corev1.SecretList, error)
+}
+
+func (f fakeSecretLister) List(namespace string, opts metav1.ListOptions) (*corev1.SecretList, error) {
+	return f.list(namespace, opts)
 }
 
 func NewChart() *v1.HelmChart {

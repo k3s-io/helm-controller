@@ -105,11 +105,20 @@ type Controller struct {
 	confCache       helmcontroller.HelmChartConfigCache
 	jobs            batchcontroller.JobController
 	jobCache        batchcontroller.JobCache
-	secrets         corecontroller.SecretController
+	configMaps      configMapLister
+	secrets         secretLister
 	secretCache     corecontroller.SecretCache
 	apply           apply.Apply
 	recorder        record.EventRecorder
 	apiServerPort   string
+}
+
+type configMapLister interface {
+	List(namespace string, opts metav1.ListOptions) (*corev1.ConfigMapList, error)
+}
+
+type secretLister interface {
+	List(namespace string, opts metav1.ListOptions) (*corev1.SecretList, error)
 }
 
 func Register(
@@ -142,6 +151,7 @@ func Register(
 		confCache:       confCache,
 		jobs:            jobs,
 		jobCache:        jobCache,
+		configMaps:      cm,
 		secrets:         s,
 		secretCache:     sCache,
 		recorder:        recorder,
@@ -565,20 +575,40 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 }
 
 func (c *Controller) getChartReleaseRevision(chart *v1.HelmChart) (int64, error) {
-	var version int64
-	fs := fields.OneTermEqualSelector("type", ReleaseType)
 	ls := labels.Set{"owner": "helm", "name": chart.Name}.AsSelector()
+
+	if helmDriver(chart) == "configmap" {
+		cmList, err := c.configMaps.List(chart.Spec.TargetNamespace, metav1.ListOptions{LabelSelector: ls.String()})
+		if err != nil {
+			return 0, err
+		}
+		objects := make([]metav1.ObjectMeta, len(cmList.Items))
+		for i := range cmList.Items {
+			objects[i] = cmList.Items[i].ObjectMeta
+		}
+		return maxReleaseRevision(objects), nil
+	}
+
+	fs := fields.OneTermEqualSelector("type", ReleaseType)
 	secretList, err := c.secrets.List(chart.Spec.TargetNamespace, metav1.ListOptions{FieldSelector: fs.String(), LabelSelector: ls.String()})
 	if err != nil {
-		return version, err
+		return 0, err
 	}
-	for _, secret := range secretList.Items {
-		if sv, err := strconv.ParseInt(secret.ObjectMeta.Labels["version"], 10, 64); err == nil && sv > version {
+	objects := make([]metav1.ObjectMeta, len(secretList.Items))
+	for i := range secretList.Items {
+		objects[i] = secretList.Items[i].ObjectMeta
+	}
+	return maxReleaseRevision(objects), nil
+}
+
+func maxReleaseRevision(objects []metav1.ObjectMeta) int64 {
+	var version int64
+	for _, obj := range objects {
+		if sv, err := strconv.ParseInt(obj.Labels["version"], 10, 64); err == nil && sv > version {
 			version = sv
 		}
 	}
-
-	return version, nil
+	return version
 }
 
 func chartBySecret(chart *v1.HelmChart) ([]string, error) {
@@ -668,7 +698,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 								},
 								{
 									Name:  "HELM_DRIVER",
-									Value: "secret",
+									Value: helmDriver(chart),
 								},
 								{
 									Name:  "CHART_NAMESPACE",
@@ -1327,6 +1357,13 @@ func templateChanged(oldJob, newJob *batch.Job) bool {
 		}
 	}
 	return !equality.Semantic.DeepEqual(oldPodTemplate, newPodTemplate)
+}
+
+func helmDriver(chart *v1.HelmChart) string {
+	if chart.Spec.Driver != "" {
+		return string(chart.Spec.Driver)
+	}
+	return "secret"
 }
 
 func objectToJob(obj runtime.Object) (*batch.Job, error) {

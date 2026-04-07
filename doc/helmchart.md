@@ -162,6 +162,7 @@ _Appears in:_
 | `dockerRegistrySecret` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#localobjectreference-v1-core)_ | Reference to Secret of type kubernetes.io/dockerconfigjson holding Docker auth credentials for the OCI-based registry acting as the Chart repo. |  |  |
 | `podSecurityContext` _[PodSecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podsecuritycontext-v1-core)_ | Custom PodSecurityContext for the helm job pod. |  |  |
 | `securityContext` _[SecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#securitycontext-v1-core)_ | custom SecurityContext for the helm job pod. |  |  |
+| `driver` _[HelmDriver](#helmdriver)_ | Helm storage driver to use for this chart's release metadata.<br />`secret` stores releases in Kubernetes Secrets (default).<br />`configmap` stores releases in ConfigMaps.<br />This field is effectively immutable after the first install; changing the storage backend is not a supported migration path.<br />Helm CLI environment variable: `HELM_DRIVER` | secret | Enum: [secret configmap] <br /> |
 
 
 #### HelmChartStatus
@@ -179,6 +180,20 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `jobName` _string_ | The name of the job created to install or upgrade the chart. |  |  |
 | `conditions` _[HelmChartCondition](#helmchartcondition) array_ | `JobCreated` indicates that a job has been created to install or upgrade the chart.<br />`Failed` indicates that the helm job has failed and the failure policy is set to `abort`. |  |  |
+
+
+#### HelmDriver
+
+_Underlying type:_ _string_
+
+
+
+_Validation:_
+- Enum: [secret configmap]
+
+_Appears in:_
+- [HelmChartSpec](#helmchartspec)
+
 
 
 #### SecretSpec
