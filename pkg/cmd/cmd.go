@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -14,6 +16,7 @@ import (
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -36,6 +39,7 @@ type HelmController struct {
 	NodeName        string
 	JobClusterRole  string
 	DefaultJobImage string
+	JobTolerations  string
 	PprofPort       int
 }
 
@@ -78,11 +82,17 @@ func (hc *HelmController) Run(app *cli.Context) error {
 		return err
 	}
 
+	tolerations, err := parseTolerations(hc.JobTolerations)
+	if err != nil {
+		return fmt.Errorf("invalid --job-tolerations JSON: %w", err)
+	}
+
 	opts := common.Options{
 		Threadiness:     hc.Threads,
 		NodeName:        hc.NodeName,
 		JobClusterRole:  hc.JobClusterRole,
 		DefaultJobImage: hc.DefaultJobImage,
+		JobTolerations:  tolerations,
 	}
 
 	if err := opts.Validate(); err != nil {
@@ -109,4 +119,18 @@ func (hc *HelmController) GetNonInteractiveClientConfig() clientcmd.ClientConfig
 			ClusterDefaults: clientcmd.ClusterDefaults,
 			ClusterInfo:     clientcmdapi.Cluster{Server: hc.MasterURL},
 		}, nil)
+}
+
+// parseTolerations takes the CLI string and parses it into a slice of corev1.Toleration objects
+func parseTolerations(raw string) ([]corev1.Toleration, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+
+	var tolerations []corev1.Toleration
+	if err := json.Unmarshal([]byte(raw), &tolerations); err != nil {
+		return nil, err
+	}
+	return tolerations, nil
 }

@@ -1,6 +1,10 @@
 package common
 
-import "fmt"
+import (
+	"fmt"
+
+	corev1 "k8s.io/api/core/v1"
+)
 
 // Options defines options that can be set on initializing the Helm Controller
 type Options struct {
@@ -8,6 +12,7 @@ type Options struct {
 	NodeName        string
 	JobClusterRole  string
 	DefaultJobImage string
+	JobTolerations  []corev1.Toleration
 }
 
 func (opts Options) Validate() error {
