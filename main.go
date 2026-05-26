@@ -54,6 +54,12 @@ func main() {
 				Destination: &config.DefaultJobImage,
 			},
 			&cli.StringFlag{
+				Name:        "job-tolerations",
+				Usage:       "JSON array of tolerations to apply to all jobs managing helm charts",
+				EnvVars:     []string{"JOB_TOLERATIONS"},
+				Destination: &config.JobTolerations,
+			},
+			&cli.StringFlag{
 				Name:        "job-cluster-role",
 				Value:       "cluster-admin",
 				Usage:       "Name of the cluster role to use for jobs created to manage helm charts",
