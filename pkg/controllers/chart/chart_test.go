@@ -181,6 +181,38 @@ func TestInstallJobImage(t *testing.T) {
 	assert.Equal("custom-job-image", job.Spec.Template.Spec.Containers[0].Image)
 }
 
+func TestInstallJobTolerations(t *testing.T) {
+	assert := assert.New(t)
+	chart := NewChart()
+	oldDefaultJobTolerations := JobTolerations
+	defer func() { JobTolerations = oldDefaultJobTolerations }()
+	JobTolerations = []corev1.Toleration{{
+		Key:      "custom-taint",
+		Operator: corev1.TolerationOpExists,
+		Effect:   corev1.TaintEffectNoSchedule,
+	}}
+
+	job, _, _ := job(chart, "6443")
+	assert.Contains(job.Spec.Template.Spec.Tolerations, JobTolerations[0])
+}
+
+func TestInstallJobBootstrapAndCustomTolerations(t *testing.T) {
+	assert := assert.New(t)
+	chart := NewChart()
+	chart.Spec.Bootstrap = true
+	oldDefaultJobTolerations := JobTolerations
+	defer func() { JobTolerations = oldDefaultJobTolerations }()
+	JobTolerations = []corev1.Toleration{{
+		Key:      "custom-taint",
+		Operator: corev1.TolerationOpExists,
+		Effect:   corev1.TaintEffectNoExecute,
+	}}
+
+	job, _, _ := job(chart, "6443")
+	assert.GreaterOrEqual(len(job.Spec.Template.Spec.Tolerations), len(JobTolerations)+1)
+	assert.Contains(job.Spec.Template.Spec.Tolerations, JobTolerations[0])
+}
+
 func TestInstallArgs(t *testing.T) {
 	assert := assert.New(t)
 	stringArgs := strings.Join(args(NewChart()), " ")

@@ -71,8 +71,8 @@ const (
 
 var (
 	commaRE              = regexp.MustCompile(`\\*,`)
-	deletePolicy         = metav1.DeletePropagationForeground
 	DefaultJobImage      = "rancher/klipper-helm:latest"
+	JobTolerations       []corev1.Toleration
 	DefaultFailurePolicy = FailurePolicyReinstall
 	defaultBackOffLimit  = ptr.To(int32(1000))
 	jobSettleTime        = time.Second * 3
@@ -863,6 +863,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 	setDockerRegistrySecret(job, chart)
 	setRepoCAConfigMap(job, chart)
 	setSecurityContext(job, chart)
+	setTolerations(job)
 	valuesSecret := setValuesSecret(job, chart)
 	contentConfigMap := setContentConfigMap(job, chart)
 
@@ -1300,6 +1301,12 @@ func setSecurityContext(job *batch.Job, chart *v1.HelmChart) {
 
 	if chart.Spec.SecurityContext != nil {
 		job.Spec.Template.Spec.Containers[0].SecurityContext = chart.Spec.SecurityContext
+	}
+}
+
+func setTolerations(job *batch.Job) {
+	if len(JobTolerations) > 0 {
+		job.Spec.Template.Spec.Tolerations = append(job.Spec.Template.Spec.Tolerations, JobTolerations...)
 	}
 }
 
