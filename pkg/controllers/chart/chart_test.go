@@ -155,6 +155,10 @@ func TestSetVals(t *testing.T) {
 
 func TestInstallJob(t *testing.T) {
 	assert := assert.New(t)
+	oldEnforcePodLimits := EnforcePodLimits
+	defer func() { EnforcePodLimits = oldEnforcePodLimits }()
+	EnforcePodLimits = true
+
 	chart := NewChart()
 	job, _, _ := job(chart, "6443")
 	assert.Equal("helm-install-traefik", job.Name)
@@ -162,6 +166,18 @@ func TestInstallJob(t *testing.T) {
 	assert.Equal("helm-traefik", job.Spec.Template.Spec.ServiceAccountName)
 	assert.Equal("32", job.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu().String())
 	assert.Equal("32G", job.Spec.Template.Spec.Containers[0].Resources.Limits.Memory().String())
+}
+
+func TestInstallJobWithoutPodLimits(t *testing.T) {
+	assert := assert.New(t)
+	oldEnforcePodLimits := EnforcePodLimits
+	defer func() { EnforcePodLimits = oldEnforcePodLimits }()
+	EnforcePodLimits = false
+
+	chart := NewChart()
+	job, _, _ := job(chart, "6443")
+	assert.Empty(job.Spec.Template.Spec.Containers[0].Resources.Requests)
+	assert.Empty(job.Spec.Template.Spec.Containers[0].Resources.Limits)
 }
 
 func TestDeleteJob(t *testing.T) {

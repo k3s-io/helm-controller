@@ -29,18 +29,19 @@ const (
 )
 
 type HelmController struct {
-	Debug           bool
-	DebugLevel      int
-	Kubeconfig      string
-	MasterURL       string
-	Namespace       string
-	Threads         int
-	ControllerName  string
-	NodeName        string
-	JobClusterRole  string
-	DefaultJobImage string
-	JobTolerations  string
-	PprofPort       int
+	Debug            bool
+	DebugLevel       int
+	Kubeconfig       string
+	MasterURL        string
+	Namespace        string
+	Threads          int
+	ControllerName   string
+	NodeName         string
+	JobClusterRole   string
+	DefaultJobImage  string
+	JobTolerations   string
+	EnforcePodLimits bool
+	PprofPort        int
 }
 
 func (hc *HelmController) SetupLogging() (logr.Logger, error) {
@@ -88,11 +89,12 @@ func (hc *HelmController) Run(app *cli.Context) error {
 	}
 
 	opts := common.Options{
-		Threadiness:     hc.Threads,
-		NodeName:        hc.NodeName,
-		JobClusterRole:  hc.JobClusterRole,
-		DefaultJobImage: hc.DefaultJobImage,
-		JobTolerations:  tolerations,
+		Threadiness:      hc.Threads,
+		NodeName:         hc.NodeName,
+		JobClusterRole:   hc.JobClusterRole,
+		DefaultJobImage:  hc.DefaultJobImage,
+		JobTolerations:   tolerations,
+		EnforcePodLimits: hc.EnforcePodLimits,
 	}
 
 	if err := opts.Validate(); err != nil {
