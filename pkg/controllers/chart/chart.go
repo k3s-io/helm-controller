@@ -70,12 +70,23 @@ const (
 )
 
 var (
-	commaRE              = regexp.MustCompile(`\\*,`)
-	DefaultJobImage      = "rancher/klipper-helm:latest"
-	JobTolerations       []corev1.Toleration
-	DefaultFailurePolicy = FailurePolicyReinstall
-	defaultBackOffLimit  = ptr.To(int32(1000))
-	jobSettleTime        = time.Second * 3
+	commaRE                        = regexp.MustCompile(`\\*,`)
+	DefaultJobImage                = "rancher/klipper-helm:latest"
+	EnforcePodLimits               = true
+	JobTolerations                 []corev1.Toleration
+	DefaultFailurePolicy           = FailurePolicyReinstall
+	defaultBackOffLimit            = ptr.To(int32(1000))
+	jobSettleTime                  = time.Second * 3
+	defaultJobResourceRequirements = &corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("0.1"),
+			corev1.ResourceMemory: resource.MustParse("10M"),
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("32"),
+			corev1.ResourceMemory: resource.MustParse("32G"),
+		},
+	}
 
 	defaultPodSecurityContext = &corev1.PodSecurityContext{
 		RunAsNonRoot: ptr.To(true),
@@ -729,16 +740,6 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 									Value: fmt.Sprintf("%t", chart.Spec.PlainHTTP),
 								},
 							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("0.1"),
-									corev1.ResourceMemory: resource.MustParse("10M"),
-								},
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("32"),
-									corev1.ResourceMemory: resource.MustParse("32G"),
-								},
-							},
 							SecurityContext: securityContext,
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -862,6 +863,7 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 	setAuthSecret(job, chart)
 	setDockerRegistrySecret(job, chart)
 	setRepoCAConfigMap(job, chart)
+	setPodLimits(job)
 	setSecurityContext(job, chart)
 	setTolerations(job)
 	valuesSecret := setValuesSecret(job, chart)
@@ -1292,6 +1294,15 @@ func hashObjects(job *batch.Job, objs ...metav1.Object) {
 
 func setBackOffLimit(job *batch.Job, backOffLimit *int32) {
 	job.Spec.BackoffLimit = backOffLimit
+}
+
+func setPodLimits(job *batch.Job) {
+	if !EnforcePodLimits {
+		job.Spec.Template.Spec.Containers[0].Resources = corev1.ResourceRequirements{}
+		return
+	}
+
+	job.Spec.Template.Spec.Containers[0].Resources = *defaultJobResourceRequirements.DeepCopy()
 }
 
 func setSecurityContext(job *batch.Job, chart *v1.HelmChart) {
