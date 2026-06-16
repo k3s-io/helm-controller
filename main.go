@@ -47,6 +47,13 @@ func main() {
 				Usage:       "If debugging is enabled, set klog -v=X",
 				Destination: &config.DebugLevel,
 			},
+			&cli.BoolFlag{
+				Name:        "enforce-pod-limits",
+				Value:       true,
+				Usage:       "Set to false to disable default CPU and memory limits on the pods created to manage helm charts",
+				EnvVars:     []string{"ENFORCE_POD_LIMITS"},
+				Destination: &config.EnforcePodLimits,
+			},
 			&cli.StringFlag{
 				Name:        "default-job-image",
 				Usage:       "Default image to use by jobs managing helm charts",

@@ -8,11 +8,12 @@ import (
 
 // Options defines options that can be set on initializing the Helm Controller
 type Options struct {
-	Threadiness     int
-	NodeName        string
-	JobClusterRole  string
-	DefaultJobImage string
-	JobTolerations  []corev1.Toleration
+	Threadiness      int
+	NodeName         string
+	JobClusterRole   string
+	DefaultJobImage  string
+	JobTolerations   []corev1.Toleration
+	EnforcePodLimits bool
 }
 
 func (opts Options) Validate() error {
