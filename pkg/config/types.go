@@ -7,22 +7,26 @@ import (
 )
 
 type CLI struct {
-	Debug            bool
-	DebugLevel       int
-	Kubeconfig       string
-	MasterURL        string
-	Namespace        string
-	Threads          int
-	ControllerName   string
-	NodeName         string
-	JobClusterRole   string
-	DefaultJobImage  string
-	JobTolerations   string
-	EnforcePodLimits bool
-	PprofPort        int
+	Debug           bool
+	DebugLevel      int
+	Kubeconfig      string
+	MasterURL       string
+	Namespace       string
+	Threads         int
+	ControllerName  string
+	NodeName        string
+	JobClusterRole  string
+	DefaultJobImage string
+	JobTolerations  string
+	JobResources    string
+	PprofPort       int
 }
 
 func (c CLI) GetControllerConfig() (*Controller, error) {
+	resources, err := parseResources(c.JobResources)
+	if err != nil {
+		return nil, fmt.Errorf("invalid job-resources JSON: %w", err)
+	}
 	tolerations, err := parseTolerations(c.JobTolerations)
 	if err != nil {
 		return nil, fmt.Errorf("invalid --job-tolerations JSON: %w", err)
@@ -33,20 +37,20 @@ func (c CLI) GetControllerConfig() (*Controller, error) {
 	}
 
 	return &Controller{
-		Threadiness:      c.Threads,
-		NodeName:         c.NodeName,
-		JobClusterRole:   c.JobClusterRole,
-		DefaultJobImage:  c.DefaultJobImage,
-		JobTolerations:   tolerations,
-		EnforcePodLimits: c.EnforcePodLimits,
+		Threadiness:     c.Threads,
+		NodeName:        c.NodeName,
+		JobClusterRole:  c.JobClusterRole,
+		DefaultJobImage: c.DefaultJobImage,
+		JobTolerations:  tolerations,
+		JobResources:    resources,
 	}, nil
 }
 
 type Controller struct {
-	Threadiness      int
-	NodeName         string
-	JobClusterRole   string
-	DefaultJobImage  string
-	JobTolerations   []corev1.Toleration
-	EnforcePodLimits bool
+	Threadiness     int
+	NodeName        string
+	JobClusterRole  string
+	DefaultJobImage string
+	JobTolerations  []corev1.Toleration
+	JobResources    *corev1.ResourceRequirements
 }
