@@ -2,11 +2,12 @@ package controllers
 
 import (
 	"context"
-	"os"
+	"errors"
+	"fmt"
 	"time"
 
+	"github.com/k3s-io/helm-controller/pkg/config"
 	"github.com/k3s-io/helm-controller/pkg/controllers/chart"
-	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	"github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io"
 	helmcontroller "github.com/k3s-io/helm-controller/pkg/generated/controllers/helm.cattle.io/v1"
 	"github.com/rancher/lasso/pkg/cache"
@@ -58,7 +59,11 @@ func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
 }
 
-func Register(ctx context.Context, systemNamespace, controllerName string, cfg clientcmd.ClientConfig, opts common.Options) error {
+func Register(ctx context.Context, systemNamespace, controllerName string, cfg clientcmd.ClientConfig, opts *config.Controller) error {
+	if opts == nil {
+		return errors.New("invalid controller config")
+	}
+
 	if len(controllerName) == 0 {
 		controllerName = "helm-controller"
 	}
@@ -123,9 +128,7 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 	controllerLockName := controllerName + "-lock"
 	leader.RunOrDie(ctx, systemNamespace, controllerLockName, appCtx.K8s, func(ctx context.Context) {
 		if err := appCtx.start(ctx); err != nil {
-			logger.Error(err, "failed to start controllers")
-			//revive:disable-next-line:deep-exit
-			os.Exit(1)
+			panic(fmt.Errorf("failed to start controllers: %w", err))
 		}
 		logger.Info("All controllers have been started")
 	})
@@ -147,7 +150,7 @@ func controllerFactory(rest *rest.Config) (controller.SharedControllerFactory, e
 	}), nil
 }
 
-func newContext(ctx context.Context, cfg clientcmd.ClientConfig, systemNamespace string, opts common.Options) (*appContext, error) {
+func newContext(ctx context.Context, cfg clientcmd.ClientConfig, systemNamespace string, opts *config.Controller) (*appContext, error) {
 	client, err := cfg.ClientConfig()
 	if err != nil {
 		return nil, err
