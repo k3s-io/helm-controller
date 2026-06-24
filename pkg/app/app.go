@@ -35,12 +35,12 @@ func New() *cli.App {
 				Usage:       "If debugging is enabled, set klog -v=X",
 				Destination: &cliconfig.DebugLevel,
 			},
-			&cli.BoolFlag{
-				Name:        "enforce-pod-limits",
-				Value:       true,
-				Usage:       "Set to false to disable default CPU and memory limits on the pods created to manage helm charts",
-				EnvVars:     []string{"ENFORCE_POD_LIMITS"},
-				Destination: &cliconfig.EnforcePodLimits,
+			&cli.StringFlag{
+				Name:        "job-resources",
+				Value:       `{"requests": {"cpu": "0.1", "memory": "10M"}, "limits": {"cpu": "32", "memory": "32G"}}`,
+				Usage:       "JSON spec of resource limits and requests to apply to containers for all jobs managing helm charts",
+				EnvVars:     []string{"JOB_RESOURCES"},
+				Destination: &cliconfig.JobResources,
 			},
 			&cli.StringFlag{
 				Name:        "default-job-image",

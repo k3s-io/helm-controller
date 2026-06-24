@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -155,24 +156,29 @@ func TestSetVals(t *testing.T) {
 
 func TestInstallJob(t *testing.T) {
 	assert := assert.New(t)
-	oldEnforcePodLimits := EnforcePodLimits
-	defer func() { EnforcePodLimits = oldEnforcePodLimits }()
-	EnforcePodLimits = true
+	oldJobResources := JobResources
+	defer func() { JobResources = oldJobResources }()
+	JobResources = &corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("10"),
+			corev1.ResourceMemory: resource.MustParse("10G"),
+		},
+	}
 
 	chart := NewChart()
 	job, _, _ := job(chart, "6443")
 	assert.Equal("helm-install-traefik", job.Name)
 	assert.Equal(DefaultJobImage, job.Spec.Template.Spec.Containers[0].Image)
 	assert.Equal("helm-traefik", job.Spec.Template.Spec.ServiceAccountName)
-	assert.Equal("32", job.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu().String())
-	assert.Equal("32G", job.Spec.Template.Spec.Containers[0].Resources.Limits.Memory().String())
+	assert.Equal("10", job.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu().String())
+	assert.Equal("10G", job.Spec.Template.Spec.Containers[0].Resources.Limits.Memory().String())
 }
 
 func TestInstallJobWithoutPodLimits(t *testing.T) {
 	assert := assert.New(t)
-	oldEnforcePodLimits := EnforcePodLimits
-	defer func() { EnforcePodLimits = oldEnforcePodLimits }()
-	EnforcePodLimits = false
+	oldJobResources := JobResources
+	defer func() { JobResources = oldJobResources }()
+	JobResources = nil
 
 	chart := NewChart()
 	job, _, _ := job(chart, "6443")

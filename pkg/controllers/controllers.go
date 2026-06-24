@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -87,7 +88,7 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 	if opts.DefaultJobImage != "" {
 		chart.DefaultJobImage = opts.DefaultJobImage
 	}
-	chart.EnforcePodLimits = opts.EnforcePodLimits
+	chart.JobResources = opts.JobResources
 	chart.JobTolerations = opts.JobTolerations
 
 	chart.Register(ctx,
@@ -111,11 +112,12 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		appCtx.Core.Secret().Cache(),
 	)
 
+	resources, _ := json.Marshal(chart.JobResources)
 	logger := klog.FromContext(ctx)
 	logger.Info("Starting helm controller", "threads", opts.Threadiness)
 	logger.Info("Using cluster role for jobs managing helm charts", "jobClusterRole", opts.JobClusterRole)
 	logger.Info("Using default image for jobs managing helm charts", "defaultJobImage", chart.DefaultJobImage)
-	logger.Info("Enforcing resource limits for jobs managing helm charts", "enforcePodLimits", chart.EnforcePodLimits)
+	logger.Info("Using resource limits for jobs managing helm charts", "jobResources", string(resources))
 	logger.Info("Using tolerations for jobs managing helm charts", "jobTolerationsCount", len(chart.JobTolerations))
 
 	if len(systemNamespace) == 0 {
