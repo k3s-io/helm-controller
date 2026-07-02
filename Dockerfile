@@ -54,6 +54,6 @@ FROM scratch AS crds
 COPY --from=builder /src/pkg/crds/yaml/generated/ /
 COPY --from=builder /src/doc/helmchart.md /tmp_doc/
 
-FROM alpine:3.23 AS production
+FROM alpine:3.24 AS production
 COPY bin/helm-controller /usr/bin/
 CMD ["helm-controller"]
