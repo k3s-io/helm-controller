@@ -37,8 +37,8 @@ func New() *cli.App {
 			},
 			&cli.StringFlag{
 				Name:        "job-resources",
-				Value:       `{"requests": {"cpu": "0.1", "memory": "10M"}, "limits": {"cpu": "32", "memory": "32G"}}`,
-				Usage:       "JSON spec of resource limits and requests to apply to containers for all jobs managing helm charts",
+				Value:       `{"requests": {"cpu": "0.1", "memory": "10M"}}`,
+				Usage:       "JSON spec of resource requests/limits to apply to containers for all jobs managing helm charts",
 				EnvVars:     []string{"JOB_RESOURCES"},
 				Destination: &cliconfig.JobResources,
 			},
