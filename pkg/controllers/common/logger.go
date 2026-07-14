@@ -51,6 +51,7 @@ func NewLogrusSink(l *logrus.Logger) *LogrusSink {
 	if l == nil {
 		l = logrus.StandardLogger()
 	}
+	l.Hooks.Add(bodyFormatHook{})
 	return &LogrusSink{e: logrus.NewEntry(l)}
 }
 
@@ -86,4 +87,21 @@ func (ls *LogrusSink) WithName(name string) logr.LogSink {
 		name = fmt.Sprintf("%s/%s", base, name)
 	}
 	return ls.WithValues("logger", name)
+}
+
+// bodyFormatHook inserts a newline before logged request bodies,
+// so that the hex-dump output aligns properly.
+type bodyFormatHook struct{}
+
+func (h bodyFormatHook) Levels() []logrus.Level {
+	return []logrus.Level{logrus.TraceLevel}
+}
+
+func (h bodyFormatHook) Fire(e *logrus.Entry) error {
+	if body, ok := e.Data["body"]; ok {
+		if str, ok := body.(string); ok && len(str) > 0 {
+			e.Data["body"] = "\n" + str
+		}
+	}
+	return nil
 }

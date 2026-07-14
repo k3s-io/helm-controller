@@ -26,12 +26,18 @@ const (
 	readyDuration = time.Minute * 1
 )
 
-func SetupLogging(debug bool) (logr.Logger, error) {
+func SetupLogging(debug bool, level int) (logr.Logger, error) {
 	klog.EnableContextualLogging(true)
 	if debug {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
-	return common.NewLogrusSink(nil).AsLogr(), nil
+	if level >= 2 {
+		logrus.SetLevel(logrus.TraceLevel)
+	}
+	logrus.SetFormatter(&logrus.TextFormatter{DisableQuote: true})
+	logger := common.NewLogrusSink(nil).AsLogr()
+	klog.SetLoggerWithOptions(logger, klog.ContextualLogger(true))
+	return logger, nil
 }
 
 func Run(ctx context.Context, hc config.CLI) error {
@@ -43,7 +49,7 @@ func Run(ctx context.Context, hc config.CLI) error {
 			log.Println(http.ListenAndServe(fmt.Sprintf("localhost:%d", hc.PprofPort), nil))
 		}()
 	}
-	logger, err := SetupLogging(hc.Debug)
+	logger, err := SetupLogging(hc.Debug, hc.DebugLevel)
 	if err != nil {
 		return err
 	}
