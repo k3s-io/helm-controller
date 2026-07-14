@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 )
 
 func init() {
@@ -31,91 +32,151 @@ func TestHashObjects(t *testing.T) {
 		configValues        string
 		configValuesContent string
 		hash                string
+		deleted             bool
 	}
 
-	tests := map[string]args{
-		"No Values": {
-			hash: "SHA256=E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "No Values",
+			args: args{
+				hash: "SHA256=7B9FDCEF22985143DB8EBC3123CCF6949B9F7767C3331DF397DD9E3A50F527D3",
+			},
 		},
-		"Chart Only 1": {
-			hash:               "SHA256=B7D684A932E5B3AC74E009951700E032CE9936BF6BE82CD2DED22B5EA647EE5D",
-			chartValuesContent: "foo: bar\n",
+		{
+			name: "Chart Only 1",
+			args: args{
+				hash:               "SHA256=67C418FF0E52EE28676386CB75915B66C0F07CB541F2DE2010B41660635B4A8D",
+				chartValuesContent: "foo: bar\n",
+			},
 		},
-		"Chart Only 2": {
-			hash:               "SHA256=F3756AFACE793965D81AE9E9BD85A51369E60C18FE024E4D950BF56054258070",
-			chartValuesContent: "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+		{
+			name: "Chart Only 2",
+			args: args{
+				hash:               "SHA256=61629635D20D65D6F5CEC25BA06793937565E7CDF3DF96202F585DEFE5D50306",
+				chartValuesContent: "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+			},
 		},
-		"Chart Only 3": {
-			hash:               "SHA256=FFE4DB5EFB61ACC03F197C464414B5BB65885E8F03AE11B9EBB657D5DD3CCC55",
-			chartValuesContent: "{}",
+		{
+			name: "Chart Only 3",
+			args: args{
+				hash:               "SHA256=EA59591A5463E5E22DA5C22DDA1A168C65EEB56194B94119CA4C399B88F9F3C5",
+				chartValuesContent: "{}",
+			},
+		}, {
+			name: "Chart Only 4",
+			args: args{
+				hash:        "SHA256=957717A3D8724FF4EFF73A90A134537201EFD9FBB920C2516E1045B0B754A711",
+				chartValues: "foo: bar\n",
+			},
+		}, {
+			name: "Config Only 1",
+			args: args{
+				hash:                "SHA256=15B3ABD9846881929F40C8EC24DE8EC4408BD4D3F0FB419E917AA66FD7E16911",
+				configValuesContent: "foo: baz\n",
+			},
 		},
-		"Chart Only 4": {
-			hash:        "SHA256=EA4FB70C0432FC1EEC700C96FA28530DD2B47A84D09F33AC2B9D666FA887C302",
-			chartValues: "foo: bar\n",
-		},
-		"Config Only 1": {
-			hash:                "SHA256=E00641CFFEB2D8EA3403D56DD456DAAF9578B4871F2FDB41B0F1AA33C25B69AF",
-			configValuesContent: "foo: baz\n",
-		},
-		"Config Only 2": {
-			hash:                "SHA256=309A32E491B3F0F43432948D90B4E766A278D0A3B3220E691EE35BC6429ECB52",
-			configValuesContent: "foo:\n  a: false\n  b: 0\n  c: 'false'\n",
-		},
-		"Config Only 3": {
-			hash:                "SHA256=E1D81D53C173950A8F35BB397759CF49B3F43C0C797AD4F7C7AD6A3A47180E03",
-			configValuesContent: "{}",
-		},
-		"Config Only 4": {
-			hash:                "SHA256=88F5E5BF9826DD95940FC3DC702C5E69F46BA280D6C6E688875DFCD56FB8F629",
-			configValues:        "foo: bar\n",
-			configValuesContent: "foo: baz\n",
-		},
-		"Chart and Config 1": {
-			hash:                "SHA256=F81EFF0BAF43F57D87FB53BCFAB06271091B411C4A582FCC130C33951CB7C81D",
-			chartValuesContent:  "foo: bar\n",
-			configValuesContent: "foo: baz\n",
-		},
-		"Chart and Config 2": {
-			hash:                "SHA256=E41407A16AAC1DBD0B6D00A1818B0A73B0EB9A506131F3CAFD102ED751A8AA3D",
-			chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
-			configValuesContent: "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
-		},
-		"Chart and Config 3": {
-			hash:         "SHA256=2C7889180BF017CF2F09368453178255F7E10B4883134AFE660CFF61D55CE20D",
-			chartValues:  "foo: bar\n",
-			configValues: "foo: baz\n",
-		},
-		"Chart and Config 4": {
-			hash:                "SHA256=D4FA2B666B5A61C632A5AFD92BBF776279DB51D24357C4A461D1088135562DE4",
-			chartValues:         "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
-			chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
-			configValues:        "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
-			configValuesContent: "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
+		{
+			name: "Config Only 2",
+			args: args{
+				hash:                "SHA256=9D36C84621E5E36D8EFA427EEE5D88FC4FC09B58990AE17644ABEF6517ECB5E8",
+				configValuesContent: "foo:\n  a: false\n  b: 0\n  c: 'false'\n",
+			},
+		}, {
+
+			name: "Config Only 3",
+			args: args{
+				hash:                "SHA256=D51FDD6AEEFAA1A1EE54D2636BF7A46A2128764911902F33AC2BF6DBE3F1CD8D",
+				configValuesContent: "{}",
+			},
+		}, {
+			name: "Config Only 4",
+			args: args{
+				hash:                "SHA256=0F574C7C5756D0EFF5B89B550824C5ED99DF6AF809629DDD9204E4BBDFC397FD",
+				configValues:        "foo: bar\n",
+				configValuesContent: "foo: baz\n",
+			},
+		}, {
+			name: "Chart and Config 1",
+			args: args{
+				hash:                "SHA256=B86FFB50BF565CA143439489CF8F503B6AF098E17A0C3D0F69080E8D41F8B4CC",
+				chartValuesContent:  "foo: bar\n",
+				configValuesContent: "foo: baz\n",
+			},
+		}, {
+			name: "Chart and Config 2",
+			args: args{
+				hash:                "SHA256=D0F1C546974B380D11B3A33F893AF0AE7C3131ACFE7FE22476C2AAA7E6160A43",
+				chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+				configValuesContent: "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
+			},
+		}, {
+			name: "Chart and Config 3",
+			args: args{
+				hash:         "SHA256=586EEB058FB147690F546AEAE7C238A551759C08881E3BFCE7544A7FAFAC8187",
+				chartValues:  "foo: bar\n",
+				configValues: "foo: baz\n",
+			},
+		}, {
+			name: "Chart and Config 4",
+			args: args{
+				hash:                "SHA256=FE2783C8C7924587AC654A29AF97911503A6C704F3DECD3C4DA80B24703CECC8",
+				chartValues:         "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+				chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+				configValues:        "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
+				configValuesContent: "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
+			},
+		}, {
+			// note: both deleted charts have the same hash, as values secrets and content configmaps are not generated when deleting
+			name: "Deleted 1",
+			args: args{
+				hash:                "SHA256=0807D189F31BF3EB82FA02EFB047A110F132004D37C50B02C8238AD07CC281D1",
+				chartValues:         "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+				chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+				configValues:        "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
+				configValuesContent: "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
+				deleted:             true,
+			},
+		}, {
+			name: "Deleted 2",
+			args: args{
+				hash:        "SHA256=0807D189F31BF3EB82FA02EFB047A110F132004D37C50B02C8238AD07CC281D1",
+				chartValues: "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
+				deleted:     true,
+			},
 		},
 	}
 
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			assert := assert.New(t)
 			chart := NewChart()
 			config := &v1.HelmChartConfig{}
+			test := tt.args
 			chart.Spec.Values = extjson.TryFromYAML(test.chartValues)
 			chart.Spec.ValuesContent = test.chartValuesContent
 			config.Spec.Values = extjson.TryFromYAML(test.configValues)
 			config.Spec.ValuesContent = test.configValuesContent
+			if test.deleted {
+				chart.DeletionTimestamp = ptr.To(metav1.Now())
+			}
 
 			job, secret, configMap := job(chart, "6443")
+
 			objects := []metav1.Object{configMap, secret}
+			if chart.DeletionTimestamp == nil {
+				valuesSecretAddConfig(job, secret, config)
 
-			valuesSecretAddConfig(job, secret, config)
+				assert.Nil(secret.StringData, "Secret StringData should be nil")
+				assert.Nil(configMap.BinaryData, "ConfigMap BinaryData should be nil")
 
-			assert.Nil(secret.StringData, "Secret StringData should be nil")
-			assert.Nil(configMap.BinaryData, "ConfigMap BinaryData should be nil")
-
-			if test.chartValues == "" && test.chartValuesContent == "" && test.configValues == "" && test.configValuesContent == "" {
-				assert.Empty(secret.Data, "Secret Data should be empty if HelmChart and HelmChartConfig Values and ValuesContent are empty")
-			} else {
-				assert.NotEmpty(secret.Data, "Secret Data should not be empty if HelmChart and/or HelmChartConfig ValuesContent are not empty")
+				if test.chartValues == "" && test.chartValuesContent == "" && test.configValues == "" && test.configValuesContent == "" {
+					assert.Empty(secret.Data, "Secret Data should be empty if HelmChart and HelmChartConfig Values and ValuesContent are empty")
+				} else {
+					assert.NotEmpty(secret.Data, "Secret Data should not be empty if HelmChart and/or HelmChartConfig ValuesContent are not empty")
+				}
 			}
 
 			hashObjects(job, objects...)
@@ -125,7 +186,7 @@ func TestHashObjects(t *testing.T) {
 			s, _ := yaml.ToBytes([]runtime.Object{secret})
 			t.Logf("Generated Secret:\n%s", s)
 
-			assert.Equalf(test.hash, job.Spec.Template.ObjectMeta.Annotations[AnnotationConfigHash], "%s annotation value does not match", AnnotationConfigHash)
+			assert.Equalf(test.hash, job.Spec.Template.ObjectMeta.Annotations[KeyConfigHash], "%s annotation value does not match", KeyConfigHash)
 		})
 	}
 }
@@ -290,31 +351,33 @@ func TestMaxReleaseRevision(t *testing.T) {
 	tests := []struct {
 		name     string
 		objects  []metav1.ObjectMeta
-		expected int64
+		expected release
 	}{
-		{"no objects", nil, 0},
+		{"no objects", nil, release{}},
 		{"single revision", []metav1.ObjectMeta{
 			{Labels: map[string]string{"version": "1"}},
-		}, 1},
+		}, release{revision: 1}},
 		{"multiple revisions returns max", []metav1.ObjectMeta{
 			{Labels: map[string]string{"version": "1"}},
 			{Labels: map[string]string{"version": "3"}},
 			{Labels: map[string]string{"version": "2"}},
-		}, 3},
+		}, release{revision: 3}},
 		{"invalid version label ignored", []metav1.ObjectMeta{
 			{Labels: map[string]string{"version": "abc"}},
 			{Labels: map[string]string{"version": "2"}},
-		}, 2},
+		}, release{revision: 2}},
 		{"missing version label ignored", []metav1.ObjectMeta{
 			{Labels: map[string]string{"owner": "helm"}},
 			{Labels: map[string]string{"version": "5"}},
-		}, 5},
+		}, release{revision: 5}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert := assert.New(t)
-			assert.Equal(tt.expected, maxReleaseRevision(tt.objects))
+			got, err := latestRelease(tt.objects)
+			assert.NoError(err)
+			assert.Equal(tt.expected, got)
 		})
 	}
 }
@@ -333,7 +396,7 @@ func TestGetChartReleaseRevision(t *testing.T) {
 					return &corev1.ConfigMapList{
 						Items: []corev1.ConfigMap{
 							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "1"}}},
-							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "3"}}},
+							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "3", "status": "deployed", KeyConfigHash: "ABC"}}},
 						},
 					}, nil
 				},
@@ -344,10 +407,10 @@ func TestGetChartReleaseRevision(t *testing.T) {
 		chart.Spec.Driver = "configmap"
 		chart.Spec.TargetNamespace = "target-ns"
 
-		revision, err := c.getChartReleaseRevision(chart)
+		rel, err := c.getChartRelease(chart)
 		assert.NoError(err)
 		assert.True(called)
-		assert.Equal(int64(3), revision)
+		assert.Equal(release{revision: 3, status: "deployed", hash: "ABC"}, rel)
 	})
 
 	t.Run("default driver uses secret storage", func(t *testing.T) {
@@ -363,7 +426,7 @@ func TestGetChartReleaseRevision(t *testing.T) {
 					return &corev1.SecretList{
 						Items: []corev1.Secret{
 							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "2"}}},
-							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "5"}}},
+							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "5", "status": "deployed", KeyConfigHash: "ABC"}}},
 						},
 					}, nil
 				},
@@ -373,10 +436,10 @@ func TestGetChartReleaseRevision(t *testing.T) {
 		chart := NewChart()
 		chart.Spec.TargetNamespace = "target-ns"
 
-		revision, err := c.getChartReleaseRevision(chart)
+		rel, err := c.getChartRelease(chart)
 		assert.NoError(err)
 		assert.True(called)
-		assert.Equal(int64(5), revision)
+		assert.Equal(release{revision: 5, status: "deployed", hash: "ABC"}, rel)
 	})
 }
 
