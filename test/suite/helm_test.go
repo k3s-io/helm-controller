@@ -22,6 +22,15 @@ import (
 var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 	framework, _ := framework.New()
 
+	// helper for returning nil chart with no error if the chart is not found
+	getHelmChartIgnoreNotFound := func(namespace, name string) (*v1.HelmChart, error) {
+		chart, err := framework.GetHelmChart(namespace, name)
+		if apierrors.IsNotFound(err) {
+			err = nil
+		}
+		return chart, err
+	}
+
 	Context("When a HelmChart is created", func() {
 		var (
 			err   error
@@ -56,10 +65,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -109,10 +115,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -158,10 +161,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -175,7 +175,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 		BeforeAll(func() {
 			service = &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "traefik-example",
+					Name:      "traefik-take-ownership",
 					Namespace: framework.Namespace,
 				},
 				Spec: corev1.ServiceSpec{
@@ -186,7 +186,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			service, err = framework.ClientSet.CoreV1().Services(framework.Namespace).Create(context.TODO(), service, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			chart = framework.NewHelmChart("traefik-example",
+			chart = framework.NewHelmChart("traefik-take-ownership",
 				"stable/traefik",
 				"1.86.1",
 				"v3",
@@ -213,9 +213,9 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 
 		It("Should take ownership of existing resources", func() {
 			Eventually(func(g Gomega) {
-				service, err = framework.ClientSet.CoreV1().Services(framework.Namespace).Get(context.TODO(), service.Name, metav1.GetOptions{})
+				svc, err := framework.ClientSet.CoreV1().Services(framework.Namespace).Get(context.TODO(), service.Name, metav1.GetOptions{})
 				g.Expect(err).ToNot(HaveOccurred())
-				g.Expect(service).To(HaveField("ObjectMeta.Annotations", HaveKeyWithValue("meta.helm.sh/release-name", "traefik-example")))
+				g.Expect(svc).To(HaveField("ObjectMeta.Annotations", HaveKeyWithValue("meta.helm.sh/release-name", chart.Name)))
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
 		})
 
@@ -223,10 +223,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -279,10 +276,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -322,10 +316,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -364,10 +355,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChartConfig(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -435,10 +423,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChartConfig(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -497,10 +482,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 
 			err = framework.ClientSet.CoreV1().Secrets(userSecret.Namespace).Delete(context.TODO(), userSecret.Name, metav1.DeleteOptions{})
@@ -574,10 +556,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChartConfig(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -620,10 +599,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -710,10 +686,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -762,10 +735,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -814,10 +784,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -869,10 +836,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -924,10 +888,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -979,10 +940,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -1037,10 +995,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
@@ -1108,10 +1063,7 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func(g Gomega) {
-				g.Expect(framework.GetHelmChart(chart.Name, chart.Namespace)).Error().Should(MatchError(apierrors.IsNotFound, "IsNotFound"))
-			}, 120*time.Second, 5*time.Second).Should(Succeed())
-
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
 			Eventually(framework.ListConfigMapReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
