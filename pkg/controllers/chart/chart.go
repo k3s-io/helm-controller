@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/pkg/controllers/extjson"
@@ -36,10 +35,12 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 )
 
@@ -51,10 +52,11 @@ const (
 
 	TaintExternalCloudProvider = "node.cloudprovider.kubernetes.io/uninitialized"
 
-	AnnotationChartURL   = "helm.cattle.io/chart-url"
-	AnnotationConfigHash = "helmcharts.helm.cattle.io/configHash"
-	AnnotationManagedBy  = "helmcharts.cattle.io/managed-by"
-	AnnotationUnmanaged  = "helmcharts.helm.cattle.io/unmanaged"
+	KeyConfigHash = "helmcharts.helm.cattle.io/configHash"
+
+	AnnotationChartURL  = "helm.cattle.io/chart-url"
+	AnnotationManagedBy = "helmcharts.cattle.io/managed-by"
+	AnnotationUnmanaged = "helmcharts.helm.cattle.io/unmanaged"
 
 	LabelChartName          = "helmcharts.helm.cattle.io/chart"
 	LabelNodeRolePrefix     = "node-role.kubernetes.io/"
@@ -75,7 +77,6 @@ var (
 	JobResources         *corev1.ResourceRequirements
 	DefaultFailurePolicy = FailurePolicyReinstall
 	defaultBackOffLimit  = ptr.To(int32(1000))
-	jobSettleTime        = time.Second * 3
 
 	defaultPodSecurityContext = &corev1.PodSecurityContext{
 		RunAsNonRoot: ptr.To(true),
@@ -96,9 +97,11 @@ var (
 )
 
 type Controller struct {
-	systemNamespace string
+	apiServerPort   string
 	jobClusterRole  string
 	managedBy       string
+	systemNamespace string
+	logger          klog.Logger
 	helms           helmcontroller.HelmChartController
 	helmCache       helmcontroller.HelmChartCache
 	confs           helmcontroller.HelmChartConfigController
@@ -110,7 +113,6 @@ type Controller struct {
 	secretCache     corecontroller.SecretCache
 	apply           apply.Apply
 	recorder        record.EventRecorder
-	apiServerPort   string
 }
 
 type configMapLister interface {
@@ -142,9 +144,11 @@ func Register(
 	s corecontroller.SecretController,
 	sCache corecontroller.SecretCache) {
 	c := &Controller{
-		systemNamespace: systemNamespace,
+		apiServerPort:   apiServerPort,
 		jobClusterRole:  jobClusterRole,
 		managedBy:       managedBy,
+		systemNamespace: systemNamespace,
+		logger:          klog.FromContext(ctx),
 		helms:           helms,
 		helmCache:       helmCache,
 		confs:           confs,
@@ -155,7 +159,6 @@ func Register(
 		secrets:         s,
 		secretCache:     sCache,
 		recorder:        recorder,
-		apiServerPort:   apiServerPort,
 	}
 
 	c.apply = apply.
@@ -206,24 +209,30 @@ func Register(
 
 // reconcileJob triggers recreation of the Job if the pod template spec changes.
 // If the Job is too new, the operation is reenqueued.
-func (c *Controller) reconcileJob(oldObj, newObj runtime.Object) (bool, error) {
-	oldJob, err := objectToJob(oldObj)
-	if err != nil {
-		return false, err
-	}
+func (c *Controller) reconcileJob(_, newObj runtime.Object) (bool, error) {
 	newJob, err := objectToJob(newObj)
 	if err != nil {
 		return false, err
 	}
-	if templateChanged(oldJob, newJob) {
-		minAge := metav1.Now().Add(-jobSettleTime)
-		// object timestamps are stripped before reconciling; get object from cache for creation time check
-		if cacheJob, err := c.jobCache.Get(oldJob.Namespace, oldJob.Name); err == nil && cacheJob.CreationTimestamp.After(minAge) {
-			return false, errors.New("wait for Job to settle before replacing")
-		}
-		return false, apply.ErrReplace
+	// old object is sourced from wrangler applied annotation, not current state.
+	// use cached object to check current conditions.
+	// ref: https://github.com/rancher/wrangler/blob/v3.7.0/pkg/apply/reconcilers.go#L136-L137
+	oldJob, err := c.jobCache.Get(newJob.Namespace, newJob.Name)
+	if err != nil {
+		return false, err
 	}
-	return false, nil
+	hasSuspendedCondition := false
+	// to avoid replacing a job before the job controller has synced it, wait for
+	// job controller to add the Suspended condition before replacing
+	for _, condition := range oldJob.Status.Conditions {
+		if condition.Type == batch.JobSuspended {
+			hasSuspendedCondition = true
+		}
+	}
+	if !hasSuspendedCondition {
+		return false, errors.New("wait for job controller to add conditions before replacing")
+	}
+	return false, apply.ErrReplace
 }
 
 func (c *Controller) resolveHelmChartFromHelmChartConfig(namespace, name string, obj runtime.Object) ([]relatedresource.Key, error) {
@@ -300,6 +309,7 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 	} else if !shouldManage {
 		return nil, chartStatus, nil
 	}
+
 	if chart.DeletionTimestamp != nil {
 		// this should only be called if the chart is being deleted
 		return nil, chartStatus, nil
@@ -324,6 +334,21 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 		return nil, chartStatus, nil
 	}
 
+	// Jobs are created as suspended. Once the job controller syncs it and adds the
+	// Suspended condition, we know that is has been observed by the job controller,
+	// and we can safely manage it without triggering race conditions. If the job is
+	// ready (has the Suspended condition), resume the job, and return ErrSkip. This
+	// handler will be run again when the job controller updates the job to mark the
+	// job as resumed.
+	if c.jobReady(chart) {
+		if err := c.resumeJob(chart); err != nil {
+			return nil, chartStatus, err
+		}
+		return nil, chartStatus, generic.ErrSkip
+	}
+
+	// getJobAndRelatedResources may return ErrSkip if no changes are necessary for the job,
+	// in which case the chartStatus does not get updated and no resources are modified.
 	job, objs, err := c.getJobAndRelatedResources(chart)
 	if err != nil {
 		chartStatus.Conditions = []v1.HelmChartCondition{
@@ -357,7 +382,7 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 	}
 
 	// emit an event to indicate that this Helm chart is being applied
-	annotations := map[string]string{AnnotationConfigHash: job.Spec.Template.ObjectMeta.Annotations[AnnotationConfigHash]}
+	annotations := map[string]string{KeyConfigHash: job.Spec.Template.ObjectMeta.Annotations[KeyConfigHash]}
 	c.recorder.AnnotatedEventf(chart, annotations, corev1.EventTypeNormal, "ApplyJob", "Applying HelmChart from %s using Job %s/%s ", chartSource(chart), job.Namespace, job.Name)
 
 	return append(objs, job), chartStatus, nil
@@ -377,22 +402,57 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 		return nil, nil
 	}
 
-	expectedJob, objs, err := c.getJobAndRelatedResources(chart)
-	if err != nil && !errors.Is(err, generic.ErrSkip) {
+	// If the job is ready (has the Suspended condition), resume the job, and
+	// return ErrSkip. This handler will be run again when the job controller
+	// updates the job to mark the job as resumed.
+	if c.jobReady(chart) {
+		if err := c.resumeJob(chart); err != nil {
+			return nil, err
+		}
+		return nil, generic.ErrSkip
+	}
+
+	if c.jobComplete(chart) {
+		// uninstall job has successfully finished!
+		c.recorder.Eventf(chart, corev1.EventTypeNormal, "RemoveJob", "Uninstalled HelmChart using Job %s/%s, removing resources", chart.Namespace, jobName(chart))
+
+		// note: an empty apply removes all resources owned by this chart
+		err := generic.ConfigureApplyForObject(c.apply, chart, &generic.GeneratingHandlerOptions{
+			AllowClusterScoped: true,
+		}).
+			WithOwner(chart).
+			WithSetID("helm-chart-registration").
+			ApplyObjects()
+		if err != nil {
+			return nil, fmt.Errorf("unable to remove resources tied to HelmChart %s/%s: %s", chart.Namespace, chart.Name, err)
+		}
+
+		return nil, nil
+	}
+
+	// getJobAndRelatedResources will return ErrSkip if no changes are necessary for the job
+	job, objs, err := c.getJobAndRelatedResources(chart)
+	if err != nil {
 		return nil, err
 	}
 
-	// note: on the logic of running an apply here...
-	// if the uninstall job does not exist, it will create it
-	// if the job already exists and it is uninstalling, nothing will change since there's no need to patch
-	// if the job already exists but is tied to an install or upgrade, there will be a need to patch so
-	// the apply will execute the jobReconciler, which will delete the install/upgrade job and recreate a uninstall job
+	c.recorder.Eventf(chart, corev1.EventTypeNormal, "RemoveJob", "Uninstalling HelmChart using Job %s/%s ", job.Namespace, job.Name)
+
+	if chart.Status.JobName != job.Name {
+		chartCopy := chart.DeepCopy()
+		chartCopy.Status.JobName = job.Name
+		chart, err = c.helms.UpdateStatus(chartCopy)
+		if err != nil {
+			return chart, fmt.Errorf("unable to update status of helm chart to add uninstall job name %s", chartCopy.Status.JobName)
+		}
+	}
+
 	err = generic.ConfigureApplyForObject(c.apply, chart, &generic.GeneratingHandlerOptions{
 		AllowClusterScoped: true,
 	}).
 		WithOwner(chart).
 		WithSetID("helm-chart-registration").
-		ApplyObjects(append(objs, expectedJob)...)
+		ApplyObjects(append(objs, job)...)
 	if err != nil {
 		// if err was caused by namespace termination, skip to not block indefinitely
 		// namespace deletion will remove the chart
@@ -411,49 +471,7 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 		return nil, err
 	}
 
-	// sleep for 3 seconds to give the job time to perform the helm install
-	// before emitting any errors
-	time.Sleep(jobSettleTime)
-
-	// once we have run the above logic, we can now check if the job is complete
-	job, err := c.jobCache.Get(chart.Namespace, expectedJob.Name)
-	if apierrors.IsNotFound(err) {
-		// the above apply should have created it, something is wrong.
-		// if you are here, there must be a bug in the code.
-		return chart, fmt.Errorf("could not perform uninstall: expected job %s/%s to exist after apply, but not found", chart.Namespace, expectedJob.Name)
-	} else if err != nil {
-		return chart, err
-	}
-
-	// the first time we call this, the job will definitely not be complete... however,
-	// throwing an error here will re-enqueue this controller, which will process the apply again
-	// and get the job object from the cache to check again
-	if job.Status.Succeeded <= 0 {
-		// temporarily recreate the chart, but keep the deletion timestamp
-		chartCopy := chart.DeepCopy()
-		chartCopy.Status.JobName = job.Name
-		newChart, err := c.helms.UpdateStatus(chartCopy)
-		if err != nil {
-			return chart, fmt.Errorf("unable to update status of helm chart to add uninstall job name %s", chartCopy.Status.JobName)
-		}
-		return newChart, fmt.Errorf("waiting for delete of helm chart for %s by %s", key, job.Name)
-	}
-
-	// uninstall job has successfully finished!
-	c.recorder.Eventf(chart, corev1.EventTypeNormal, "RemoveJob", "Uninstalled HelmChart using Job %s/%s, removing resources", job.Namespace, job.Name)
-
-	// note: an empty apply removes all resources owned by this chart
-	err = generic.ConfigureApplyForObject(c.apply, chart, &generic.GeneratingHandlerOptions{
-		AllowClusterScoped: true,
-	}).
-		WithOwner(chart).
-		WithSetID("helm-chart-registration").
-		ApplyObjects()
-	if err != nil {
-		return nil, fmt.Errorf("unable to remove resources tied to HelmChart %s/%s: %s", chart.Namespace, chart.Name, err)
-	}
-
-	return chart, nil
+	return chart, generic.ErrSkip
 }
 
 func (c *Controller) shouldManage(chart *v1.HelmChart) (bool, error) {
@@ -505,37 +523,42 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	}
 
 	// get the default job and configmaps
+	objects := []metav1.Object{}
 	job, valuesSecret, contentConfigMap := job(chart, c.apiServerPort)
-	objects := []metav1.Object{contentConfigMap, valuesSecret}
 
-	// make sure that changes to HelmChart ValuesSecrets triger change to hash
-	for _, secret := range chart.Spec.ValuesSecrets {
-		if !secret.IgnoreUpdates && secret.Name != "chart-values-"+chart.Name {
-			if s, err := c.secretCache.Get(chart.Namespace, secret.Name); err == nil {
-				objects = append(objects, s)
-			}
-		}
-	}
-
-	// check if a HelmChartConfig is registered for this Helm chart
-	config, err := c.confCache.Get(chart.Namespace, chart.Name)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, nil, err
-	}
-	if config != nil {
-		// Merge the values into the HelmChart's values
-		valuesSecretAddConfig(job, valuesSecret, config)
-
-		// Override the failure policy to what is provided in the HelmChartConfig
-		if fp := string(config.Spec.FailurePolicy); fp != "" {
-			failurePolicy = fp
-		}
+	if chart.DeletionTimestamp == nil {
+		// only need content and values secrets if the chart is being installed or upgraded
+		objects = append(objects, contentConfigMap, valuesSecret)
 
 		// make sure that changes to HelmChart ValuesSecrets triger change to hash
-		for _, secret := range config.Spec.ValuesSecrets {
-			if !secret.IgnoreUpdates && secret.Name != "chart-values-"+config.Name {
+		for _, secret := range chart.Spec.ValuesSecrets {
+			if !secret.IgnoreUpdates && secret.Name != "chart-values-"+chart.Name {
 				if s, err := c.secretCache.Get(chart.Namespace, secret.Name); err == nil {
 					objects = append(objects, s)
+				}
+			}
+		}
+
+		// check if a HelmChartConfig is registered for this Helm chart
+		config, err := c.confCache.Get(chart.Namespace, chart.Name)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return nil, nil, err
+		}
+		if config != nil {
+			// Merge the values into the HelmChart's values
+			valuesSecretAddConfig(job, valuesSecret, config)
+
+			// Override the failure policy to what is provided in the HelmChartConfig
+			if fp := string(config.Spec.FailurePolicy); fp != "" {
+				failurePolicy = fp
+			}
+
+			// make sure that changes to HelmChart ValuesSecrets triger change to hash
+			for _, secret := range config.Spec.ValuesSecrets {
+				if !secret.IgnoreUpdates && secret.Name != "chart-values-"+config.Name {
+					if s, err := c.secretCache.Get(chart.Namespace, secret.Name); err == nil {
+						objects = append(objects, s)
+					}
 				}
 			}
 		}
@@ -548,22 +571,68 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	setBackOffLimit(job, backOffLimit)
 	hashObjects(job, objects...)
 
-	if oldJob, err := c.jobCache.Get(job.Namespace, job.Name); err == nil && !templateChanged(oldJob, job) {
-		return job, nil, generic.ErrSkip
+	_, configHash, _ := strings.Cut(job.Spec.Template.ObjectMeta.Annotations[KeyConfigHash], "=")
+	if len(configHash) > 63 { // max label value
+		configHash = configHash[:63]
 	}
 
-	// inject the current chart release into the job env; the helm job pod is
-	// expected to validate this, and not take action if it does not match
-	// Note that this is injected AFTER the hash check, so that the hash ignores changes to the revision.
-	if revision, err := c.getChartReleaseRevision(chart); err != nil && !apierrors.IsNotFound(err) {
-		return nil, nil, err
-	} else if revision != 0 {
-		for i := range job.Spec.Template.Spec.Containers {
-			job.Spec.Template.Spec.Containers[i].Env = append(job.Spec.Template.Spec.Containers[i].Env, corev1.EnvVar{
-				Name:  "EXPECTED_RELEASE_REVISION",
-				Value: strconv.FormatInt(revision, 10),
-			})
+	// get current release info
+	release, err := c.getChartRelease(chart)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, nil, fmt.Errorf("failed to get latest chart release revision: %w", err)
+	}
+	c.logger.V(1).Info("Resolved latest chart release",
+		"chart.name", fmt.Sprintf("%s/%s", chart.Namespace, chart.Name),
+		"chart.hash", configHash,
+		"release.revision", release.revision,
+		"release.hash", release.hash,
+		"release.status", release.status,
+	)
+
+	if c.jobComplete(chart) {
+		if chart.DeletionTimestamp == nil {
+			// if the install or upgrade job is complete and the latest release's hash
+			// label matches the config hash, then there is nothing to be done.
+			if release.status == "deployed" && release.hash == configHash {
+				c.logger.V(1).Info("Job is completed and deployed chart release has correct hash",
+					"chart.name", fmt.Sprintf("%s/%s", chart.Namespace, chart.Name),
+				)
+				return job, nil, generic.ErrSkip
+			}
+			c.logger.V(1).Info("Job is completed but release status or hash is incorrect",
+				"chart.name", fmt.Sprintf("%s/%s", chart.Namespace, chart.Name),
+			)
+		} else {
+			// if the delete job is complete and there is no release present,
+			// then there is nothing to be done
+			if release.revision == 0 {
+				c.logger.V(1).Info("Job is completed and no release is present",
+					"chart.name", fmt.Sprintf("%s/%s", chart.Namespace, chart.Name),
+				)
+				return job, nil, generic.ErrSkip
+			}
+			c.logger.V(1).Info("Job is completed but release is still present",
+				"chart.name", fmt.Sprintf("%s/%s", chart.Namespace, chart.Name),
+			)
 		}
+	} else {
+		// job is not complete, do not modify the job if the template has not changed
+		if oldJob, err := c.jobCache.Get(job.Namespace, job.Name); err == nil && !templateChanged(oldJob, job) {
+			return job, nil, generic.ErrSkip
+		}
+	}
+
+	// inject the current chart release and hash into the job env; the helm job pod is
+	// expected to validate the hash, and not take action if it does not match. If the job
+	// pod does take action, the expected hash is added to the helm release resource as a label.
+	// Note that this is injected AFTER the hash is calculated, so that the hash does not
+	// include the revision or hash itself, which would cause an endless reconcile loop.
+	for i := range job.Spec.Template.Spec.Containers {
+		job.Spec.Template.Spec.Containers[i].Env = append(
+			job.Spec.Template.Spec.Containers[i].Env,
+			corev1.EnvVar{Name: "EXPECTED_RELEASE_REVISION", Value: strconv.FormatInt(release.revision, 10)},
+			corev1.EnvVar{Name: "CONFIG_HASH", Value: configHash},
+		)
 	}
 
 	return job, []runtime.Object{
@@ -574,41 +643,86 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	}, nil
 }
 
-func (c *Controller) getChartReleaseRevision(chart *v1.HelmChart) (int64, error) {
+func (c *Controller) getChartRelease(chart *v1.HelmChart) (release, error) {
 	ls := labels.Set{"owner": "helm", "name": chart.Name}.AsSelector()
 
 	if helmDriver(chart) == "configmap" {
 		cmList, err := c.configMaps.List(chart.Spec.TargetNamespace, metav1.ListOptions{LabelSelector: ls.String()})
 		if err != nil {
-			return 0, err
+			return release{}, err
 		}
 		objects := make([]metav1.ObjectMeta, len(cmList.Items))
 		for i := range cmList.Items {
 			objects[i] = cmList.Items[i].ObjectMeta
 		}
-		return maxReleaseRevision(objects), nil
+		return latestRelease(objects)
 	}
 
 	fs := fields.OneTermEqualSelector("type", ReleaseType)
 	secretList, err := c.secrets.List(chart.Spec.TargetNamespace, metav1.ListOptions{FieldSelector: fs.String(), LabelSelector: ls.String()})
 	if err != nil {
-		return 0, err
+		return release{}, err
 	}
 	objects := make([]metav1.ObjectMeta, len(secretList.Items))
 	for i := range secretList.Items {
 		objects[i] = secretList.Items[i].ObjectMeta
 	}
-	return maxReleaseRevision(objects), nil
+	return latestRelease(objects)
 }
 
-func maxReleaseRevision(objects []metav1.ObjectMeta) int64 {
-	var version int64
-	for _, obj := range objects {
-		if sv, err := strconv.ParseInt(obj.Labels["version"], 10, 64); err == nil && sv > version {
-			version = sv
+// jobComplete returns true if the job controller has added a True Completed
+// condition to the job for the given chart.
+func (c *Controller) jobComplete(chart *v1.HelmChart) bool {
+	if job, _ := c.jobs.Cache().Get(chart.Namespace, jobName(chart)); job != nil {
+		for _, condition := range job.Status.Conditions {
+			if condition.Type == batch.JobComplete {
+				return condition.Status == corev1.ConditionTrue
+			}
 		}
 	}
-	return version
+	return false
+}
+
+// jobReady returns true if the job is suspended and the Job controller has
+// added a True Suspended condition to the job for the given chart. The
+// addition of this condition indicates that the controller has observed and
+// synced the job at least once.
+func (c *Controller) jobReady(chart *v1.HelmChart) bool {
+	if job, _ := c.jobs.Cache().Get(chart.Namespace, jobName(chart)); job != nil && job.Spec.Suspend != nil && *job.Spec.Suspend {
+		for _, condition := range job.Status.Conditions {
+			if condition.Type == batch.JobSuspended {
+				return condition.Status == corev1.ConditionTrue
+			}
+		}
+	}
+	return false
+}
+
+// resumeJob patches the job for the given chart to set spec.suspended = false
+func (c *Controller) resumeJob(chart *v1.HelmChart) error {
+	name := jobName(chart)
+	c.recorder.Eventf(chart, corev1.EventTypeNormal, "ResumeJob", "Resuming synced Job %s/%s ", chart.Namespace, name)
+	_, err := c.jobs.Patch(chart.Namespace, name, types.MergePatchType, []byte(`{"spec":{"suspend":false}}`))
+	return err
+}
+
+type release struct {
+	revision int64
+	hash     string
+	status   string
+}
+
+// latestRelease returns info for the release with the highest version, from the provided list of objects.
+func latestRelease(objects []metav1.ObjectMeta) (release, error) {
+	rel := release{}
+	for _, obj := range objects {
+		if sv, err := strconv.ParseInt(obj.Labels["version"], 10, 64); err == nil && sv > rel.revision {
+			rel.revision = sv
+			rel.status = obj.Labels["status"]
+			rel.hash = obj.Labels[KeyConfigHash]
+		}
+	}
+	return rel, nil
 }
 
 func chartBySecret(chart *v1.HelmChart) ([]string, error) {
@@ -637,11 +751,6 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 		jobImage = DefaultJobImage
 	}
 
-	action := "install"
-	if chart.DeletionTimestamp != nil {
-		action = "delete"
-	}
-
 	targetNamespace := chart.Namespace
 	if len(chart.Spec.TargetNamespace) != 0 {
 		targetNamespace = chart.Spec.TargetNamespace
@@ -661,13 +770,14 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 			Kind:       "Job",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("helm-%s-%s", action, chart.Name),
+			Name:      jobName(chart),
 			Namespace: chart.Namespace,
 			Labels: map[string]string{
 				LabelChartName: chart.Name,
 			},
 		},
 		Spec: batch.JobSpec{
+			Suspend: ptr.To(true),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{},
@@ -855,10 +965,15 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 	setPodResources(job)
 	setSecurityContext(job, chart)
 	setTolerations(job)
-	valuesSecret := setValuesSecret(job, chart)
-	contentConfigMap := setContentConfigMap(job, chart)
 
-	return job, valuesSecret, contentConfigMap
+	if chart.DeletionTimestamp == nil {
+		// only need content and values secrets if the chart is being installed or upgraded
+		valuesSecret := setValuesSecret(job, chart)
+		contentConfigMap := setContentConfigMap(job, chart)
+		return job, valuesSecret, contentConfigMap
+	}
+
+	return job, nil, nil
 }
 
 func valuesSecret(chart *v1.HelmChart) *corev1.Secret {
@@ -1261,7 +1376,12 @@ func setFailurePolicy(job *batch.Job, failurePolicy string) {
 
 func hashObjects(job *batch.Job, objs ...metav1.Object) {
 	hash := sha256.New()
-
+	if obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&job.Spec.Template); err == nil {
+		ust := unstructured.Unstructured{Object: obj}
+		if b, err := ust.MarshalJSON(); err == nil {
+			hash.Write(b)
+		}
+	}
 	for _, obj := range objs {
 		if uobj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj); err == nil {
 			if data, _, err := unstructured.NestedStringMap(uobj, "data"); err == nil {
@@ -1278,7 +1398,7 @@ func hashObjects(job *batch.Job, objs ...metav1.Object) {
 		}
 	}
 
-	job.Spec.Template.ObjectMeta.Annotations[AnnotationConfigHash] = fmt.Sprintf("SHA256=%X", hash.Sum(nil))
+	job.Spec.Template.ObjectMeta.Annotations[KeyConfigHash] = fmt.Sprintf("SHA256=%X", hash.Sum(nil))
 }
 
 func setBackOffLimit(job *batch.Job, backOffLimit *int32) {
@@ -1341,7 +1461,7 @@ func chartSource(chart *v1.HelmChart) string {
 
 // templateChanged returns true if the job's pod template has changed.
 // Labels and fields managed by Kubernetes are ignored.
-// The EXPECTED_RELEASE_REVISION env var is ignored, as this is expected to change once the chart has been updated,
+// The CONFIG_HASH and EXPECTED_RELEASE_REVISION env vars are ignored, as they are expected to change once the chart has been updated,
 // and MUST NOT trigger a re-run of the pod or we will end up in a loop.
 func templateChanged(oldJob, newJob *batch.Job) bool {
 	oldPodTemplate := oldJob.Spec.Template.DeepCopy()
@@ -1356,11 +1476,24 @@ func templateChanged(oldJob, newJob *batch.Job) bool {
 			template.Spec.Containers[c].TerminationMessagePath = corev1.TerminationMessagePathDefault
 			template.Spec.Containers[c].TerminationMessagePolicy = corev1.TerminationMessageReadFile
 			template.Spec.Containers[c].Env = slices.DeleteFunc(template.Spec.Containers[c].Env, func(e corev1.EnvVar) bool {
-				return e.Name == "EXPECTED_RELEASE_REVISION"
+				switch e.Name {
+				case "CONFIG_HASH", "EXPECTED_RELEASE_REVISION":
+					return true
+				default:
+					return false
+				}
 			})
 		}
 	}
 	return !equality.Semantic.DeepEqual(oldPodTemplate, newPodTemplate)
+}
+
+func jobName(chart *v1.HelmChart) string {
+	action := "install"
+	if chart.DeletionTimestamp != nil {
+		action = "delete"
+	}
+	return fmt.Sprintf("helm-%s-%s", action, chart.Name)
 }
 
 func helmDriver(chart *v1.HelmChart) string {
