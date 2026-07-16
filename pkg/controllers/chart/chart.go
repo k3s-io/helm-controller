@@ -214,23 +214,28 @@ func (c *Controller) reconcileJob(_, newObj runtime.Object) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// old object is sourced from wrangler applied annotation, not current state.
-	// use cached object to check current conditions.
+	// Old object is sourced from wrangler applied annotation, not current state.
+	// Instead, we use the cached object to check current conditions.
 	// ref: https://github.com/rancher/wrangler/blob/v3.7.0/pkg/apply/reconcilers.go#L136-L137
 	oldJob, err := c.jobCache.Get(newJob.Namespace, newJob.Name)
 	if err != nil {
 		return false, err
 	}
-	hasSuspendedCondition := false
-	// to avoid replacing a job before the job controller has synced it, wait for
-	// job controller to add the Suspended condition before replacing
-	for _, condition := range oldJob.Status.Conditions {
-		if condition.Type == batch.JobSuspended {
-			hasSuspendedCondition = true
-		}
+	// To avoid racing, we want to avoid creating and deleting jobs faster than
+	// the controller can keep up. The addition of at least one condition
+	// indicates that the controller has observed and synced the job at least
+	// once.
+	if len(oldJob.Status.Conditions) == 0 {
+		return false, errors.New("wait for job controller sync before replace")
 	}
-	if !hasSuspendedCondition {
-		return false, errors.New("wait for job controller to add conditions before replacing")
+	// To avoid replacing a job while old pods are still running, we wait for
+	// there to be no active or terminating pods before deleting.
+	podCount := oldJob.Status.Active
+	if oldJob.Status.Terminating != nil {
+		podCount += *oldJob.Status.Terminating
+	}
+	if podCount != 0 {
+		return false, errors.New("wait for pods to terminate before replace")
 	}
 	return false, apply.ErrReplace
 }
@@ -341,8 +346,8 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 	// handler will be run again when the job controller updates the job to mark the
 	// job as resumed.
 	if c.jobReady(chart) {
-		if err := c.resumeJob(chart); err != nil {
-			return nil, chartStatus, err
+		if err := c.setJobSuspended(chart, false); err != nil {
+			return nil, chartStatus, fmt.Errorf("failed to resume job: %w", err)
 		}
 		return nil, chartStatus, generic.ErrSkip
 	}
@@ -381,6 +386,11 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 		},
 	}
 
+	// Suspend the current job before apply attempts to delete and recreate it.
+	// The job may not exist, or may have already finished, or already be suspend, so
+	// we don't care about whether or not this succeeds.
+	_ = c.setJobSuspended(chart, true)
+
 	// emit an event to indicate that this Helm chart is being applied
 	annotations := map[string]string{KeyConfigHash: job.Spec.Template.ObjectMeta.Annotations[KeyConfigHash]}
 	c.recorder.AnnotatedEventf(chart, annotations, corev1.EventTypeNormal, "ApplyJob", "Applying HelmChart from %s using Job %s/%s ", chartSource(chart), job.Namespace, job.Name)
@@ -402,12 +412,12 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 		return nil, nil
 	}
 
-	// If the job is ready (has the Suspended condition), resume the job, and
-	// return ErrSkip. This handler will be run again when the job controller
-	// updates the job to mark the job as resumed.
+	// If the job is ready (has the Suspended condition and has never been
+	// started), resume the job, and return ErrSkip. This handler will be run
+	// again when the job controller updates the job to mark the job as resumed.
 	if c.jobReady(chart) {
-		if err := c.resumeJob(chart); err != nil {
-			return nil, err
+		if err := c.setJobSuspended(chart, false); err != nil {
+			return nil, fmt.Errorf("failed to resume job: %w", err)
 		}
 		return nil, generic.ErrSkip
 	}
@@ -435,6 +445,11 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 	if err != nil {
 		return nil, err
 	}
+
+	// Suspend the current job before apply attempts to delete and recreate it.
+	// The job may not exist, or may have already finished, or already be suspend, so
+	// we don't care about whether or not this succeeds.
+	_ = c.setJobSuspended(chart, true)
 
 	c.recorder.Eventf(chart, corev1.EventTypeNormal, "RemoveJob", "Uninstalling HelmChart using Job %s/%s ", job.Namespace, job.Name)
 
@@ -683,12 +698,16 @@ func (c *Controller) jobComplete(chart *v1.HelmChart) bool {
 	return false
 }
 
-// jobReady returns true if the job is suspended and the Job controller has
-// added a True Suspended condition to the job for the given chart. The
-// addition of this condition indicates that the controller has observed and
-// synced the job at least once.
+// jobReady returns true if the job is suspended, has never been started, and
+// the Job controller has added a True Suspended condition to the job for the
+// given chart. The addition of this condition indicates that the controller
+// has observed and synced the job at least once.
+// We create jobs suspended, and look for generation == 1 to indicate that the
+// job has not potentially previously run; we cannot look at status.startTime as
+// this is cleared when the job is suspended.
 func (c *Controller) jobReady(chart *v1.HelmChart) bool {
-	if job, _ := c.jobs.Cache().Get(chart.Namespace, jobName(chart)); job != nil && job.Spec.Suspend != nil && *job.Spec.Suspend {
+	job, _ := c.jobs.Cache().Get(chart.Namespace, jobName(chart))
+	if job != nil && job.Generation == 1 && job.Spec.Suspend != nil && *job.Spec.Suspend {
 		for _, condition := range job.Status.Conditions {
 			if condition.Type == batch.JobSuspended {
 				return condition.Status == corev1.ConditionTrue
@@ -698,11 +717,22 @@ func (c *Controller) jobReady(chart *v1.HelmChart) bool {
 	return false
 }
 
-// resumeJob patches the job for the given chart to set spec.suspended = false
-func (c *Controller) resumeJob(chart *v1.HelmChart) error {
+// setJobSuspended patches the job for the given chart to set spec.suspend.
+// We use a JSONPatch that tests that the value is not already set to the
+// desired state, so the Patch will return an error if the change is a no-op or
+// the job does not exist, which will prevent spurious events from being
+// emitted.
+func (c *Controller) setJobSuspended(chart *v1.HelmChart, suspend bool) error {
 	name := jobName(chart)
-	c.recorder.Eventf(chart, corev1.EventTypeNormal, "ResumeJob", "Resuming synced Job %s/%s ", chart.Namespace, name)
-	_, err := c.jobs.Patch(chart.Namespace, name, types.MergePatchType, []byte(`{"spec":{"suspend":false}}`))
+	b := fmt.Appendf(nil, `[{"op":"test","path":"/spec/suspend","value":%t},{"op":"replace","path":"/spec/suspend","value":%t}]`, !suspend, suspend)
+	_, err := c.jobs.Patch(chart.Namespace, name, types.JSONPatchType, b)
+	if err == nil {
+		if suspend {
+			c.recorder.Eventf(chart, corev1.EventTypeNormal, "SuspendJob", "Suspended Job %s/%s for delete", chart.Namespace, name)
+		} else {
+			c.recorder.Eventf(chart, corev1.EventTypeNormal, "ResumeJob", "Resumed synced Job %s/%s", chart.Namespace, name)
+		}
+	}
 	return err
 }
 
