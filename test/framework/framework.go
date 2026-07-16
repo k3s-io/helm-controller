@@ -13,8 +13,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/utils/ptr"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	chartcontroller "github.com/k3s-io/helm-controller/pkg/controllers/chart"
 	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	"github.com/k3s-io/helm-controller/pkg/controllers/extjson"
 	helmcrd "github.com/k3s-io/helm-controller/pkg/crds"
@@ -329,6 +331,52 @@ func (f *Framework) ListChartPods(chart *v1.HelmChart, appName string) ([]corev1
 	}
 
 	return podList.Items, nil
+}
+
+func (f *Framework) NewShellJob(chart *v1.HelmChart, command ...string) (*batchv1.Job, error) {
+	if chart.Status.JobName == "" {
+		return nil, errors.New("job name must be populated")
+	}
+	j := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: chart.Namespace,
+			Name:      chart.Status.JobName,
+			Labels: map[string]string{
+				chartcontroller.LabelChartName: chart.Name,
+			},
+		},
+		Spec: batchv1.JobSpec{
+			BackoffLimit: ptr.To(int32(0)),
+			Parallelism:  ptr.To(int32(1)),
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						chartcontroller.LabelChartName: chart.Name,
+					},
+				},
+				Spec: corev1.PodSpec{
+					RestartPolicy:                corev1.RestartPolicyOnFailure,
+					AutomountServiceAccountToken: ptr.To(false),
+					NodeSelector: map[string]string{
+						corev1.LabelOSStable: "linux",
+					},
+					Containers: []corev1.Container{
+						{
+							Name:            "shell",
+							Command:         command,
+							Image:           "docker.io/library/busybox:1.37.0",
+							ImagePullPolicy: corev1.PullIfNotPresent,
+						},
+					},
+				},
+			},
+		},
+	}
+	r, err := f.ClientSet.BatchV1().Jobs(chart.Namespace).Create(context.TODO(), j, metav1.CreateOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (f *Framework) GetJob(chart *v1.HelmChart) (*batchv1.Job, error) {
