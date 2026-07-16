@@ -5,13 +5,11 @@ RUN apk add --no-cache bash git gcc musl-dev
 WORKDIR /src
 COPY . .
 
-RUN GOPROXY=direct go install sigs.k8s.io/controller-tools/cmd/controller-gen@257e3a04698a16ea834c49f457de7704474f9a74
-RUN GOPROXY=direct go install github.com/elastic/crd-ref-docs@7de989285647936ac62ea1ff8887e25e0056bc58
-
-RUN go generate ./...
-
 RUN --mount=type=cache,id=gomod,target=/go/pkg/mod \
     --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
+    GOPROXY=direct go install sigs.k8s.io/controller-tools/cmd/controller-gen@257e3a04698a16ea834c49f457de7704474f9a74; \
+    GOPROXY=direct go install github.com/elastic/crd-ref-docs@7de989285647936ac62ea1ff8887e25e0056bc58; \
+    go generate ./...; \
     ./scripts/build
 
 FROM scratch AS binary
@@ -35,13 +33,17 @@ RUN if [ "${ARCH}" != "arm" ]; then \
     tar --strip-components=1 -xzf golangci-lint.tar.gz -C /usr/local/bin golangci-lint-${GOLANGCI_VERSION#v}-linux-${ARCH}/golangci-lint && \
     rm -f /tmp/golangci-lint.tar.gz; \
     fi
-RUN if [ "${ARCH}" = "amd64" ]; then \
-    go install sigs.k8s.io/kustomize/kustomize/v5@1155ccbe3c1fc56cbbd82847899f86c7b824e005; \
+RUN --mount=type=cache,id=gomod,target=/go/pkg/mod \
+    --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
+    if [ "${ARCH}" = "amd64" ]; then \
+      go install sigs.k8s.io/kustomize/kustomize/v5@1155ccbe3c1fc56cbbd82847899f86c7b824e005; \
     fi
 
 WORKDIR /src
 COPY go.mod go.sum pkg/ main.go ./
-RUN go mod download
+RUN --mount=type=cache,id=gomod,target=/go/pkg/mod \
+    --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
+    go mod download
 COPY . .
 
 FROM dev AS package
