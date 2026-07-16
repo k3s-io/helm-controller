@@ -43,4 +43,4 @@ setup_k8s
 export KUBECONFIG=$PWD/kube_config_cluster.yml
 export HELM_CONTROLLER_IMAGE=$(cat bin/helm-controller-image.txt)
 load_helm_image
-go test -cover -tags=test -v ./test/...
+go test ./test/suite/ -test.v -ginkgo.vv -ginkgo.fail-fast

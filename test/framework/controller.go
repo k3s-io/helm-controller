@@ -19,26 +19,27 @@ import (
 
 func (f *Framework) setupController(ctx context.Context) error {
 	_, err := f.ClientSet.CoreV1().Namespaces().Create(ctx, f.getNS(), metav1.CreateOptions{})
-	if err != nil {
+	if err != nil && !errors.IsAlreadyExists(err) {
 		return err
 	}
 
 	_, err = f.ClientSet.RbacV1().ClusterRoles().Create(ctx, f.getCr(), metav1.CreateOptions{})
-	if err != nil {
+	if err != nil && !errors.IsAlreadyExists(err) {
 		return err
 	}
 
 	_, err = f.ClientSet.RbacV1().ClusterRoleBindings().Create(ctx, f.getCrb(), metav1.CreateOptions{})
-	if err != nil {
+	if err != nil && !errors.IsAlreadyExists(err) {
 		return err
 	}
 
-	if err := crd.BatchCreateCRDs(ctx, f.ClientExt.ApiextensionsV1().CustomResourceDefinitions(), nil, time.Minute, f.crds); err != nil {
+	err = crd.BatchCreateCRDs(ctx, f.ClientExt.ApiextensionsV1().CustomResourceDefinitions(), nil, time.Minute, f.crds)
+	if err != nil && !errors.IsAlreadyExists(err) {
 		return err
 	}
 
 	_, err = f.ClientSet.CoreV1().ServiceAccounts(f.Namespace).Create(ctx, f.getSa(), metav1.CreateOptions{})
-	if err != nil {
+	if err != nil && !errors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -59,8 +60,17 @@ func (f *Framework) setupController(ctx context.Context) error {
 		return err
 	}
 
-	_, err = f.ClientSet.AppsV1().Deployments(f.Namespace).Create(context.TODO(), f.getDeployment(), metav1.CreateOptions{})
-	return err
+	if _, err := f.ClientSet.AppsV1().Deployments(f.Namespace).Create(context.TODO(), f.getDeployment(), metav1.CreateOptions{}); err != nil {
+		if errors.IsAlreadyExists(err) {
+			if _, err := f.ClientSet.AppsV1().Deployments(f.Namespace).Update(context.TODO(), f.getDeployment(), metav1.UpdateOptions{}); err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (f *Framework) getNS() *corev1.Namespace {
