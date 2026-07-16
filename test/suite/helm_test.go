@@ -1067,4 +1067,133 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Eventually(framework.ListConfigMapReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
+
+	Context("When an old active job exists", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+		)
+		BeforeAll(func() {
+			chart = &v1.HelmChart{ObjectMeta: metav1.ObjectMeta{Namespace: framework.Namespace, Name: "traefik-example"}, Status: v1.HelmChartStatus{JobName: "helm-install-traefik-example"}}
+			Expect(framework.NewShellJob(chart, "sh", "-c", "sleep 3600; exit 0")).ToNot(BeNil())
+			Eventually(framework.GetJob, 30*time.Second, 5*time.Second).WithArguments(chart).Should(HaveField("Status.Active", BeNumerically("==", 1)))
+
+			chart = framework.NewHelmChart("traefik-example",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should create a release for the chart", func() {
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+		})
+
+		AfterAll(func() {
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
+	Context("When an old successful job exists", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+		)
+		BeforeAll(func() {
+			chart = &v1.HelmChart{ObjectMeta: metav1.ObjectMeta{Namespace: framework.Namespace, Name: "traefik-example"}, Status: v1.HelmChartStatus{JobName: "helm-install-traefik-example"}}
+			Expect(framework.NewShellJob(chart, "sh", "-c", "sleep 5; exit 0")).ToNot(BeNil())
+			Eventually(framework.GetJob, 30*time.Second, 5*time.Second).WithArguments(chart).Should(HaveField("Status.Conditions", ContainElement(HaveField("Type", batchv1.JobComplete))))
+
+			chart = framework.NewHelmChart("traefik-example",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should create a release for the chart", func() {
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+		})
+
+		AfterAll(func() {
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
+	Context("When an old failed job exists", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+		)
+		BeforeAll(func() {
+			chart = &v1.HelmChart{ObjectMeta: metav1.ObjectMeta{Namespace: framework.Namespace, Name: "traefik-example"}, Status: v1.HelmChartStatus{JobName: "helm-install-traefik-example"}}
+			Expect(framework.NewShellJob(chart, "sh", "-c", "sleep 5; exit 1")).ToNot(BeNil())
+			Eventually(framework.GetJob, 30*time.Second, 5*time.Second).WithArguments(chart).Should(HaveField("Status.Conditions", ContainElement(HaveField("Type", batchv1.JobFailed))))
+
+			chart = framework.NewHelmChart("traefik-example",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should create a release for the chart", func() {
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+		})
+
+		AfterAll(func() {
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
 })
