@@ -79,6 +79,9 @@ type HelmChartSpec struct {
 	// Set to True if helm should take ownership of existing resources when installing/upgrading the chart.
 	// Helm CLI positional argument/flag: `--take-ownership`
 	TakeOwnership bool `json:"takeOwnership,omitempty"`
+	// Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
+	// Helm CLI positional argument/flag: `--force-conflicts`
+	ForceConflicts bool `json:"forceConflicts,omitempty"`
 	// Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`.
 	// Helm CLI positional argument/flag: `CHART`
 	ChartContent string `json:"chartContent,omitempty"`
@@ -166,6 +169,9 @@ type HelmChartConfigSpec struct {
 	// - `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error.
 	// +kubebuilder:default=reinstall
 	FailurePolicy FailurePolicy `json:"failurePolicy,omitempty"`
+	// Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
+	// Helm CLI positional argument/flag: `--force-conflicts`
+	ForceConflicts *bool `json:"forceConflicts,omitempty"`
 }
 
 type HelmChartConditionType string
