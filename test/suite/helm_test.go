@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
 )
@@ -156,6 +157,80 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Expect(chart.Spec.Set["replicas"]).To(Equal(intstr.FromString("3")))
 
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(2))
+		})
+		AfterAll(func() {
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
+	Context("When a HelmChart is updated with spec.forceConflicts=true", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+		)
+		BeforeAll(func() {
+			chart = framework.NewHelmChart("traefik-force-conflicts",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart.Spec.FailurePolicy = "retry"
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("Should create a release for the chart", func() {
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(And(
+				HaveLen(1),
+				ContainElement(HaveField("ObjectMeta.Labels", HaveKeyWithValue("status", "deployed"))),
+			))
+		})
+		Specify("A conflicting controller modifies fields", func() {
+			deployment, err := framework.ClientSet.AppsV1().Deployments(chart.Namespace).Patch(
+				context.TODO(),
+				chart.Name,
+				types.MergePatchType,
+				[]byte(`{"spec": {"replicas": 2}}`),
+				metav1.PatchOptions{FieldManager: "example-other-controller"},
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(deployment.Spec.Replicas).To(HaveValue(BeNumerically("==", 2)))
+		})
+		It("Should create a new failed release when the values are changed", func() {
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			chart.Spec.Set["replicas"] = intstr.FromString("3")
+			chart, err = framework.UpdateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(chart.Spec.Set["replicas"]).To(Equal(intstr.FromString("3")))
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(And(
+				HaveLen(2),
+				ContainElement(HaveField("ObjectMeta.Labels", HaveKeyWithValue("status", "failed"))),
+			))
+		})
+		It("Should create a new deployed release", func() {
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			chart.Spec.ForceConflicts = true
+			chart, err = framework.UpdateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(chart.Spec.ForceConflicts).To(BeTrue())
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(And(
+				HaveLen(3),
+				ContainElement(HaveField("ObjectMeta.Labels", HaveKeyWithValue("status", "deployed"))),
+			))
 		})
 		AfterAll(func() {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
