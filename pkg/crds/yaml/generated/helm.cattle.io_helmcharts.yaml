@@ -152,6 +152,11 @@ spec:
                 - abort
                 - reinstall
                 type: string
+              forceConflicts:
+                description: |-
+                  Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
+                  Helm CLI positional argument/flag: `--force-conflicts`
+                type: boolean
               helmVersion:
                 description: DEPRECATED. Helm version to use. Only v3 is currently
                   supported.

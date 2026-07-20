@@ -56,6 +56,11 @@ spec:
                 - abort
                 - reinstall
                 type: string
+              forceConflicts:
+                description: |-
+                  Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
+                  Helm CLI positional argument/flag: `--force-conflicts`
+                type: boolean
               values:
                 description: |-
                   Override complex Chart values via structured YAML. Takes precedence over options set via valuesContent.
