@@ -340,6 +340,28 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 		return nil, chartStatus, nil
 	}
 
+	if c.jobFailed(chart) {
+		c.recorder.Eventf(chart, corev1.EventTypeWarning, "JobFailed", "Job has reached configured number of retries without succeeding")
+		chartCopy := chart.DeepCopy()
+		chartCopy.Status.Conditions = []v1.HelmChartCondition{
+			{
+				Type:    v1.HelmChartJobCreated,
+				Status:  corev1.ConditionTrue,
+				Reason:  "Job created",
+				Message: fmt.Sprintf("Applying HelmChart using Job %s/%s", chart.Namespace, jobName(chart)),
+			},
+			{
+				Type:    v1.HelmChartFailed,
+				Status:  corev1.ConditionTrue,
+				Reason:  "Job failed",
+				Message: "Job has reached configured number of retries without succeeding",
+			},
+		}
+		if _, err := c.helms.UpdateStatus(chartCopy); err != nil {
+			return nil, chartStatus, fmt.Errorf("unable to update status of helm chart to set failed condition: %w", err)
+		}
+	}
+
 	// Jobs are created as suspended. Once the job controller syncs it and adds the
 	// Suspended condition, we know that is has been observed by the job controller,
 	// and we can safely manage it without triggering race conditions. If the job is
@@ -379,7 +401,7 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 			Type:    v1.HelmChartJobCreated,
 			Status:  corev1.ConditionTrue,
 			Reason:  "Job created",
-			Message: fmt.Sprintf("Applying HelmChart using Job %s/%s", job.Namespace, job.Name),
+			Message: fmt.Sprintf("Applying HelmChart using Job %s/%s", chart.Namespace, jobName(chart)),
 		},
 		{
 			Type:   v1.HelmChartFailed,
@@ -459,7 +481,7 @@ func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, e
 		chartCopy.Status.JobName = job.Name
 		chart, err = c.helms.UpdateStatus(chartCopy)
 		if err != nil {
-			return chart, fmt.Errorf("unable to update status of helm chart to add uninstall job name %s", chartCopy.Status.JobName)
+			return chart, fmt.Errorf("unable to update status of helm chart to add uninstall job name %s: %w", chartCopy.Status.JobName, err)
 		}
 	}
 
@@ -532,6 +554,9 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 		failurePolicy = fp
 	}
 
+	// set default for SSA force-conflicts
+	forceConflicts := chart.Spec.ForceConflicts
+
 	// override default backOffLimit if specified
 	backOffLimit := defaultBackOffLimit
 	if chart.Spec.BackOffLimit != nil {
@@ -569,6 +594,11 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 				failurePolicy = fp
 			}
 
+			// Override the force-conflict setting to what is provided in the HelmChartConfig
+			if config.Spec.ForceConflicts != nil {
+				forceConflicts = *config.Spec.ForceConflicts
+			}
+
 			// make sure that changes to HelmChart ValuesSecrets triger change to hash
 			for _, secret := range config.Spec.ValuesSecrets {
 				if !secret.IgnoreUpdates && secret.Name != "chart-values-"+config.Name {
@@ -584,6 +614,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	// note: the purpose of the additional annotation is to cause the job to be destroyed
 	// and recreated if the hash of the HelmChartConfig changes while it is being processed
 	setFailurePolicy(job, failurePolicy)
+	setForceConflicts(job, forceConflicts)
 	setBackOffLimit(job, backOffLimit)
 	hashObjects(job, objects...)
 
@@ -692,6 +723,19 @@ func (c *Controller) jobComplete(chart *v1.HelmChart) bool {
 	if job, _ := c.jobs.Cache().Get(chart.Namespace, jobName(chart)); job != nil {
 		for _, condition := range job.Status.Conditions {
 			if condition.Type == batch.JobComplete {
+				return condition.Status == corev1.ConditionTrue
+			}
+		}
+	}
+	return false
+}
+
+// jobFailed returns true if the job controller has added a True Failed
+// condition to the job for the given chart.
+func (c *Controller) jobFailed(chart *v1.HelmChart) bool {
+	if job, _ := c.jobs.Cache().Get(chart.Namespace, jobName(chart)); job != nil {
+		for _, condition := range job.Status.Conditions {
+			if condition.Type == batch.JobFailed {
 				return condition.Status == corev1.ConditionTrue
 			}
 		}
@@ -1405,8 +1449,17 @@ func setFailurePolicy(job *batch.Job, failurePolicy string) {
 	})
 }
 
+func setForceConflicts(job *batch.Job, forceConflicts bool) {
+	if forceConflicts {
+		job.Spec.Template.Spec.Containers[0].Args = slices.Insert(job.Spec.Template.Spec.Containers[0].Args, 1, "--force-conflicts")
+	}
+}
+
 func hashObjects(job *batch.Job, objs ...metav1.Object) {
 	hash := sha256.New()
+	if backoffLimit := job.Spec.BackoffLimit; backoffLimit != nil {
+		hash.Write(fmt.Append(nil, *backoffLimit))
+	}
 	if obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&job.Spec.Template); err == nil {
 		ust := unstructured.Unstructured{Object: obj}
 		if b, err := ust.MarshalJSON(); err == nil {
