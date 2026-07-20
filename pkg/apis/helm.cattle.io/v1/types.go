@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// +kubebuilder:validation:Enum={"abort","reinstall"}
+// +kubebuilder:validation:Enum={"abort","reinstall","retry"}
 type FailurePolicy string
 
 // +kubebuilder:validation:Enum={"secret","configmap"}
@@ -93,8 +93,9 @@ type HelmChartSpec struct {
 	// Helm CLI positional argument/flag: `--timeout`
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 	// Configures handling of failed chart installation or upgrades.
-	// - `reinstall` will perform a clean uninstall and reinstall of the chart.
 	// - `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error.
+	// - `reinstall` will perform a clean uninstall and reinstall of the chart; this is the default behavior.
+	// - `retry` will attempt to retry the install or upgrade whenever chart configuration changes.
 	// +kubebuilder:default=reinstall
 	FailurePolicy FailurePolicy `json:"failurePolicy,omitempty"`
 	// Reference to Secret of type kubernetes.io/basic-auth holding Basic auth credentials for the Chart repo.
@@ -165,8 +166,9 @@ type HelmChartConfigSpec struct {
 	// Helm CLI positional argument/flag: `--values`
 	ValuesSecrets []SecretSpec `json:"valuesSecrets,omitempty"`
 	// Configures handling of failed chart installation or upgrades.
-	// - `reinstall` will perform a clean uninstall and reinstall of the chart.
 	// - `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error.
+	// - `reinstall` will perform a clean uninstall and reinstall of the chart; this is the default behavior.
+	// - `retry` will attempt to retry the install or upgrade whenever chart configuration changes.
 	// +kubebuilder:default=reinstall
 	FailurePolicy FailurePolicy `json:"failurePolicy,omitempty"`
 	// Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
