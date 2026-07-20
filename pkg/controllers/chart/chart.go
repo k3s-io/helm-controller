@@ -63,8 +63,9 @@ const (
 	LabelControlPlaneSuffix = "control-plane"
 	LabelEtcdSuffix         = "etcd"
 
-	FailurePolicyReinstall = "reinstall"
 	FailurePolicyAbort     = "abort"
+	FailurePolicyReinstall = "reinstall"
+	FailurePolicyRetry     = "retry"
 
 	chartBySecretIndex       = "helmcharts.helm.cattle.io/chart-by-secret"
 	chartConfigBySecretIndex = "helmcharts.helm.cattle.io/chartconfig-by-secret"
