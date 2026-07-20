@@ -119,6 +119,7 @@ _Appears in:_
 | `valuesContent` _string_ | Override complex Chart values via inline YAML content.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `valuesSecrets` _[SecretSpec](#secretspec) array_ | Override complex Chart values via references to external Secrets.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `failurePolicy` _[FailurePolicy](#failurepolicy)_ | Configures handling of failed chart installation or upgrades.<br />- `reinstall` will perform a clean uninstall and reinstall of the chart.<br />- `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error. | reinstall | Enum: [abort reinstall] <br /> |
+| `forceConflicts` _boolean_ | Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.<br />Helm CLI positional argument/flag: `--force-conflicts` |  |  |
 
 
 
@@ -150,6 +151,7 @@ _Appears in:_
 | `helmVersion` _string_ | DEPRECATED. Helm version to use. Only v3 is currently supported. |  |  |
 | `bootstrap` _boolean_ | Set to True if this chart is needed to bootstrap the cluster (Cloud Controller Manager, CNI, etc). |  |  |
 | `takeOwnership` _boolean_ | Set to True if helm should take ownership of existing resources when installing/upgrading the chart.<br />Helm CLI positional argument/flag: `--take-ownership` |  |  |
+| `forceConflicts` _boolean_ | Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.<br />Helm CLI positional argument/flag: `--force-conflicts` |  |  |
 | `chartContent` _string_ | Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`.<br />Helm CLI positional argument/flag: `CHART` |  |  |
 | `jobImage` _string_ | Specify the image to use for tht helm job pod when installing or upgrading the helm chart. |  |  |
 | `backOffLimit` _integer_ | Specify the number of retries before considering the helm job failed. |  |  |
