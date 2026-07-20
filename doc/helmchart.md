@@ -18,7 +18,7 @@ _Underlying type:_ _string_
 
 
 _Validation:_
-- Enum: [abort reinstall]
+- Enum: [abort reinstall retry]
 
 _Appears in:_
 - [HelmChartConfigSpec](#helmchartconfigspec)
@@ -118,7 +118,7 @@ _Appears in:_
 | `values` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#json-v1-apiextensions-k8s-io)_ | Override complex Chart values via structured YAML. Takes precedence over options set via valuesContent.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `valuesContent` _string_ | Override complex Chart values via inline YAML content.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `valuesSecrets` _[SecretSpec](#secretspec) array_ | Override complex Chart values via references to external Secrets.<br />Helm CLI positional argument/flag: `--values` |  |  |
-| `failurePolicy` _[FailurePolicy](#failurepolicy)_ | Configures handling of failed chart installation or upgrades.<br />- `reinstall` will perform a clean uninstall and reinstall of the chart.<br />- `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error. | reinstall | Enum: [abort reinstall] <br /> |
+| `failurePolicy` _[FailurePolicy](#failurepolicy)_ | Configures handling of failed chart installation or upgrades.<br />- `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error.<br />- `reinstall` will perform a clean uninstall and reinstall of the chart; this is the default behavior.<br />- `retry` will attempt to retry the install or upgrade whenever chart configuration changes. | reinstall | Enum: [abort reinstall retry] <br /> |
 | `forceConflicts` _boolean_ | Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.<br />Helm CLI positional argument/flag: `--force-conflicts` |  |  |
 
 
@@ -156,7 +156,7 @@ _Appears in:_
 | `jobImage` _string_ | Specify the image to use for tht helm job pod when installing or upgrading the helm chart. |  |  |
 | `backOffLimit` _integer_ | Specify the number of retries before considering the helm job failed. |  |  |
 | `timeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#duration-v1-meta)_ | Timeout for Helm operations.<br />Helm CLI positional argument/flag: `--timeout` |  |  |
-| `failurePolicy` _[FailurePolicy](#failurepolicy)_ | Configures handling of failed chart installation or upgrades.<br />- `reinstall` will perform a clean uninstall and reinstall of the chart.<br />- `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error. | reinstall | Enum: [abort reinstall] <br /> |
+| `failurePolicy` _[FailurePolicy](#failurepolicy)_ | Configures handling of failed chart installation or upgrades.<br />- `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error.<br />- `reinstall` will perform a clean uninstall and reinstall of the chart; this is the default behavior.<br />- `retry` will attempt to retry the install or upgrade whenever chart configuration changes. | reinstall | Enum: [abort reinstall retry] <br /> |
 | `authSecret` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#localobjectreference-v1-core)_ | Reference to Secret of type kubernetes.io/basic-auth holding Basic auth credentials for the Chart repo. |  |  |
 | `authPassCredentials` _boolean_ | Pass Basic auth credentials to all domains.<br />Helm CLI positional argument/flag: `--pass-credentials` |  |  |
 | `insecureSkipTLSVerify` _boolean_ | Skip TLS certificate checks for the chart download.<br />Helm CLI positional argument/flag: `--insecure-skip-tls-verify` |  |  |
