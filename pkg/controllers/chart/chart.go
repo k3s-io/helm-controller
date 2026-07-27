@@ -63,21 +63,16 @@ const (
 	LabelControlPlaneSuffix = "control-plane"
 	LabelEtcdSuffix         = "etcd"
 
-	FailurePolicyAbort     = "abort"
-	FailurePolicyReinstall = "reinstall"
-	FailurePolicyRetry     = "retry"
-
 	chartBySecretIndex       = "helmcharts.helm.cattle.io/chart-by-secret"
 	chartConfigBySecretIndex = "helmcharts.helm.cattle.io/chartconfig-by-secret"
 )
 
 var (
-	commaRE              = regexp.MustCompile(`\\*,`)
-	DefaultJobImage      = "rancher/klipper-helm:latest"
-	JobTolerations       []corev1.Toleration
-	JobResources         *corev1.ResourceRequirements
-	DefaultFailurePolicy = FailurePolicyReinstall
-	defaultBackOffLimit  = ptr.To(int32(1000))
+	commaRE             = regexp.MustCompile(`\\*,`)
+	DefaultJobImage     = "rancher/klipper-helm:latest"
+	JobTolerations      []corev1.Toleration
+	JobResources        *corev1.ResourceRequirements
+	defaultBackOffLimit = ptr.To(int32(1000))
 
 	defaultPodSecurityContext = &corev1.PodSecurityContext{
 		RunAsNonRoot: ptr.To(true),
@@ -548,10 +543,16 @@ func (c *Controller) shouldManage(chart *v1.HelmChart) (bool, error) {
 }
 
 func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job, []runtime.Object, error) {
-	// set a default failure policy
-	failurePolicy := DefaultFailurePolicy
-	if fp := string(chart.Spec.FailurePolicy); fp != "" {
-		failurePolicy = fp
+	// set default for failure policy
+	failurePolicy := v1.FailurePolicyReinstall
+	if chart.Spec.FailurePolicy != "" {
+		failurePolicy = chart.Spec.FailurePolicy
+	}
+
+	// set default for server-side apply (SSA)
+	serverSide := v1.ServerSideAuto
+	if chart.Spec.ServerSide != "" {
+		serverSide = chart.Spec.ServerSide
 	}
 
 	// set default for SSA force-conflicts
@@ -590,8 +591,13 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 			valuesSecretAddConfig(job, valuesSecret, config)
 
 			// Override the failure policy to what is provided in the HelmChartConfig
-			if fp := string(config.Spec.FailurePolicy); fp != "" {
-				failurePolicy = fp
+			if config.Spec.FailurePolicy != "" {
+				failurePolicy = config.Spec.FailurePolicy
+			}
+
+			// Override the server-side apply setting to what is provided in the HelmChartConfig
+			if config.Spec.ServerSide != "" {
+				serverSide = config.Spec.ServerSide
 			}
 
 			// Override the force-conflict setting to what is provided in the HelmChartConfig
@@ -614,6 +620,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	// note: the purpose of the additional annotation is to cause the job to be destroyed
 	// and recreated if the hash of the HelmChartConfig changes while it is being processed
 	setFailurePolicy(job, failurePolicy)
+	setServerSide(job, serverSide)
 	setForceConflicts(job, forceConflicts)
 	setBackOffLimit(job, backOffLimit)
 	hashObjects(job, objects...)
@@ -1442,17 +1449,25 @@ func setRepoCAConfigMap(job *batch.Job, chart *v1.HelmChart) {
 	}
 }
 
-func setFailurePolicy(job *batch.Job, failurePolicy string) {
+func setFailurePolicy(job *batch.Job, failurePolicy v1.FailurePolicy) {
 	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
 		Name:  "FAILURE_POLICY",
-		Value: failurePolicy,
+		Value: string(failurePolicy),
+	})
+}
+
+func setServerSide(job *batch.Job, serverSide v1.ServerSide) {
+	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
+		Name:  "SERVER_SIDE",
+		Value: string(serverSide),
 	})
 }
 
 func setForceConflicts(job *batch.Job, forceConflicts bool) {
-	if forceConflicts {
-		job.Spec.Template.Spec.Containers[0].Args = slices.Insert(job.Spec.Template.Spec.Containers[0].Args, 1, "--force-conflicts")
-	}
+	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, corev1.EnvVar{
+		Name:  "FORCE_CONFLICTS",
+		Value: fmt.Sprint(forceConflicts),
+	})
 }
 
 func hashObjects(job *batch.Job, objs ...metav1.Object) {
