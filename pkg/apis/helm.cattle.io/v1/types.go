@@ -13,8 +13,28 @@ import (
 // +kubebuilder:validation:Enum={"abort","reinstall","retry"}
 type FailurePolicy string
 
+var (
+	FailurePolicyAbort     = FailurePolicy("abort")
+	FailurePolicyReinstall = FailurePolicy("reinstall")
+	FailurePolicyRetry     = FailurePolicy("retry")
+)
+
 // +kubebuilder:validation:Enum={"secret","configmap"}
 type HelmDriver string
+
+var (
+	HelmDriverSecret    = HelmDriver("secret")
+	HelmDriverConfigMap = HelmDriver("configmap")
+)
+
+// +kubebuilder:validation:Enum={"true","false","auto"}
+type ServerSide string
+
+var (
+	ServerSideTrue  = ServerSide("true")
+	ServerSideFalse = ServerSide("false")
+	ServerSideAuto  = ServerSide("auto")
+)
 
 // +genclient
 // +kubebuilder:subresource:status
@@ -79,7 +99,13 @@ type HelmChartSpec struct {
 	// Set to True if helm should take ownership of existing resources when installing/upgrading the chart.
 	// Helm CLI positional argument/flag: `--take-ownership`
 	TakeOwnership bool `json:"takeOwnership,omitempty"`
-	// Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
+	// Set to true if helm should enable server-side apply when updating objects. Defaults to `true` for install, and `auto` for upgrade.
+	// - `true` enables server-side apply.
+	// - `false` disables server-side apply.
+	// - `auto` enables server-side apply if the chart was installed with server-side apply enabled.
+	// Helm CLI positional argument/flag: `--server-side`
+	ServerSide ServerSide `json:"serverSide,omitempty"`
+	// Set to true if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
 	// Helm CLI positional argument/flag: `--force-conflicts`
 	ForceConflicts bool `json:"forceConflicts,omitempty"`
 	// Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`.
@@ -171,7 +197,13 @@ type HelmChartConfigSpec struct {
 	// - `retry` will attempt to retry the install or upgrade whenever chart configuration changes.
 	// +kubebuilder:default=reinstall
 	FailurePolicy FailurePolicy `json:"failurePolicy,omitempty"`
-	// Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
+	// Set to true if helm should enable server-side apply when updating objects. Defaults to `true` for install, and `auto` for upgrade.
+	// - `true` enables server-side apply.
+	// - `false` disables server-side apply.
+	// - `auto` enables server-side apply if the chart was installed with server-side apply enabled.
+	// Helm CLI positional argument/flag: `--server-side`
+	ServerSide ServerSide `json:"serverSide,omitempty"`
+	// Set to true if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
 	// Helm CLI positional argument/flag: `--force-conflicts`
 	ForceConflicts *bool `json:"forceConflicts,omitempty"`
 }

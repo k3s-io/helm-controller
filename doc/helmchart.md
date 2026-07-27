@@ -119,7 +119,8 @@ _Appears in:_
 | `valuesContent` _string_ | Override complex Chart values via inline YAML content.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `valuesSecrets` _[SecretSpec](#secretspec) array_ | Override complex Chart values via references to external Secrets.<br />Helm CLI positional argument/flag: `--values` |  |  |
 | `failurePolicy` _[FailurePolicy](#failurepolicy)_ | Configures handling of failed chart installation or upgrades.<br />- `abort` will take no action and leave the chart in a failed state so that the administrator can manually resolve the error.<br />- `reinstall` will perform a clean uninstall and reinstall of the chart; this is the default behavior.<br />- `retry` will attempt to retry the install or upgrade whenever chart configuration changes. | reinstall | Enum: [abort reinstall retry] <br /> |
-| `forceConflicts` _boolean_ | Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.<br />Helm CLI positional argument/flag: `--force-conflicts` |  |  |
+| `serverSide` _[ServerSide](#serverside)_ | Set to true if helm should enable server-side apply when updating objects. Defaults to `true` for install, and `auto` for upgrade.<br />- `true` enables server-side apply.<br />- `false` disables server-side apply.<br />- `auto` enables server-side apply if the chart was installed with server-side apply enabled.<br />Helm CLI positional argument/flag: `--server-side` |  | Enum: [true false auto] <br /> |
+| `forceConflicts` _boolean_ | Set to true if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.<br />Helm CLI positional argument/flag: `--force-conflicts` |  |  |
 
 
 
@@ -151,7 +152,8 @@ _Appears in:_
 | `helmVersion` _string_ | DEPRECATED. Helm version to use. Only v3 is currently supported. |  |  |
 | `bootstrap` _boolean_ | Set to True if this chart is needed to bootstrap the cluster (Cloud Controller Manager, CNI, etc). |  |  |
 | `takeOwnership` _boolean_ | Set to True if helm should take ownership of existing resources when installing/upgrading the chart.<br />Helm CLI positional argument/flag: `--take-ownership` |  |  |
-| `forceConflicts` _boolean_ | Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.<br />Helm CLI positional argument/flag: `--force-conflicts` |  |  |
+| `serverSide` _[ServerSide](#serverside)_ | Set to true if helm should enable server-side apply when updating objects. Defaults to `true` for install, and `auto` for upgrade.<br />- `true` enables server-side apply.<br />- `false` disables server-side apply.<br />- `auto` enables server-side apply if the chart was installed with server-side apply enabled.<br />Helm CLI positional argument/flag: `--server-side` |  | Enum: [true false auto] <br /> |
+| `forceConflicts` _boolean_ | Set to true if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.<br />Helm CLI positional argument/flag: `--force-conflicts` |  |  |
 | `chartContent` _string_ | Base64-encoded chart archive .tgz; overides `.spec.chart` and `.spec.version`.<br />Helm CLI positional argument/flag: `CHART` |  |  |
 | `jobImage` _string_ | Specify the image to use for tht helm job pod when installing or upgrading the helm chart. |  |  |
 | `backOffLimit` _integer_ | Specify the number of retries before considering the helm job failed. |  |  |
@@ -215,5 +217,20 @@ _Appears in:_
 | `name` _string_ | Name of the secret. Must be in the same namespace as the HelmChart resource. |  |  |
 | `keys` _string array_ | Keys to read values content from. If no keys are specified, the secret is not used. |  |  |
 | `ignoreUpdates` _boolean_ | Ignore changes to the secret, and mark the secret as optional.<br />By default, the secret must exist, and changes to the secret will trigger an upgrade of the chart to apply the updated values.<br />If `ignoreUpdates` is true, the secret is optional, and changes to the secret will not trigger an upgrade of the chart. |  |  |
+
+
+#### ServerSide
+
+_Underlying type:_ _string_
+
+
+
+_Validation:_
+- Enum: [true false auto]
+
+_Appears in:_
+- [HelmChartConfigSpec](#helmchartconfigspec)
+- [HelmChartSpec](#helmchartspec)
+
 
 

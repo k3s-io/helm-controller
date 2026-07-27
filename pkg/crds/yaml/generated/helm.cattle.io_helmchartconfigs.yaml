@@ -60,9 +60,21 @@ spec:
                 type: string
               forceConflicts:
                 description: |-
-                  Set to True if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
+                  Set to true if helm should configure server-side apply to force changes when conflicts arise in ownership of managed fields.
                   Helm CLI positional argument/flag: `--force-conflicts`
                 type: boolean
+              serverSide:
+                description: |-
+                  Set to true if helm should enable server-side apply when updating objects. Defaults to `true` for install, and `auto` for upgrade.
+                  - `true` enables server-side apply.
+                  - `false` disables server-side apply.
+                  - `auto` enables server-side apply if the chart was installed with server-side apply enabled.
+                  Helm CLI positional argument/flag: `--server-side`
+                enum:
+                - "true"
+                - "false"
+                - auto
+                type: string
               values:
                 description: |-
                   Override complex Chart values via structured YAML. Takes precedence over options set via valuesContent.
