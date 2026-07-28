@@ -1043,6 +1043,21 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 				Name:  "BOOTSTRAP",
 				Value: "true"},
 		}...)
+	} else {
+		job.Spec.Template.Spec.Affinity = &corev1.Affinity{
+			NodeAffinity: &corev1.NodeAffinity{
+				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+					Weight: 100,
+					Preference: corev1.NodeSelectorTerm{
+						MatchExpressions: []corev1.NodeSelectorRequirement{{
+							Key:      LabelNodeRolePrefix + LabelControlPlaneSuffix,
+							Operator: corev1.NodeSelectorOpIn,
+							Values:   []string{"true"},
+						}},
+					},
+				}},
+			},
+		}
 	}
 
 	setProxyEnv(job)
