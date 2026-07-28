@@ -32,6 +32,7 @@ func TestHashObjects(t *testing.T) {
 		configValues        string
 		configValuesContent string
 		hash                string
+		bootstrap           bool
 		deleted             bool
 	}
 
@@ -42,87 +43,111 @@ func TestHashObjects(t *testing.T) {
 		{
 			name: "No Values",
 			args: args{
-				hash: "SHA256=7B9FDCEF22985143DB8EBC3123CCF6949B9F7767C3331DF397DD9E3A50F527D3",
+				hash: "SHA256=093BC73A1C288F832E33F887E0F1B23403188FCCAC57F1293FB19A7BA02D8A54",
 			},
-		},
-		{
+		}, {
+			name: "No Values (bootstrap)",
+			args: args{
+				hash:      "SHA256=093BC73A1C288F832E33F887E0F1B23403188FCCAC57F1293FB19A7BA02D8A54",
+				bootstrap: true,
+			},
+		}, {
+			name: "Chart Only (bootstrap)",
+			args: args{
+				hash:               "SHA256=9647B243590942AC04A543760720DD200E99E5DF2C86DE15899338138FA9FE52",
+				chartValuesContent: "foo: bar\n",
+				bootstrap:          true,
+			},
+		}, {
 			name: "Chart Only 1",
 			args: args{
-				hash:               "SHA256=67C418FF0E52EE28676386CB75915B66C0F07CB541F2DE2010B41660635B4A8D",
+				hash:               "SHA256=9647B243590942AC04A543760720DD200E99E5DF2C86DE15899338138FA9FE52",
 				chartValuesContent: "foo: bar\n",
 			},
-		},
-		{
+		}, {
 			name: "Chart Only 2",
 			args: args{
-				hash:               "SHA256=61629635D20D65D6F5CEC25BA06793937565E7CDF3DF96202F585DEFE5D50306",
+				hash:               "SHA256=2447EFBFF7EB3CDDD7D0D837D66DA0464C6EBC74F2FD3139969094ECB6AD83B3",
 				chartValuesContent: "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
 			},
-		},
-		{
+		}, {
 			name: "Chart Only 3",
 			args: args{
-				hash:               "SHA256=EA59591A5463E5E22DA5C22DDA1A168C65EEB56194B94119CA4C399B88F9F3C5",
+				hash:               "SHA256=755203C2D22E6D546EF829CD0FC3B8DB67214406697A6B744275FE20229DE73C",
 				chartValuesContent: "{}",
 			},
 		}, {
 			name: "Chart Only 4",
 			args: args{
-				hash:        "SHA256=957717A3D8724FF4EFF73A90A134537201EFD9FBB920C2516E1045B0B754A711",
+				hash:        "SHA256=F45A4570241BE6597A2D91C17B5210B7F94C6EC8A4964E6010AB0E442AE9F582",
 				chartValues: "foo: bar\n",
+			},
+		}, {
+			name: "Config Only (bootstrap)",
+			args: args{
+				hash:                "SHA256=592698FA722B72294DE013D670CB6865A60FDA0BE8737CD8969B19B2AA738C51",
+				configValuesContent: "foo: baz\n",
+				bootstrap:           true,
 			},
 		}, {
 			name: "Config Only 1",
 			args: args{
-				hash:                "SHA256=15B3ABD9846881929F40C8EC24DE8EC4408BD4D3F0FB419E917AA66FD7E16911",
+				hash:                "SHA256=592698FA722B72294DE013D670CB6865A60FDA0BE8737CD8969B19B2AA738C51",
 				configValuesContent: "foo: baz\n",
 			},
-		},
-		{
+		}, {
 			name: "Config Only 2",
 			args: args{
-				hash:                "SHA256=9D36C84621E5E36D8EFA427EEE5D88FC4FC09B58990AE17644ABEF6517ECB5E8",
+				hash:                "SHA256=6487F887DCDB89778080823D5181F8A2CA623112545B467E3E8E15388FADBFA0",
 				configValuesContent: "foo:\n  a: false\n  b: 0\n  c: 'false'\n",
 			},
 		}, {
 
 			name: "Config Only 3",
 			args: args{
-				hash:                "SHA256=D51FDD6AEEFAA1A1EE54D2636BF7A46A2128764911902F33AC2BF6DBE3F1CD8D",
+				hash:                "SHA256=E2407E9D44172D6F29ACFEDDC835EC7FBF5DC0AFB21A7061123F9EC5865996E3",
 				configValuesContent: "{}",
 			},
 		}, {
 			name: "Config Only 4",
 			args: args{
-				hash:                "SHA256=0F574C7C5756D0EFF5B89B550824C5ED99DF6AF809629DDD9204E4BBDFC397FD",
+				hash:                "SHA256=0565CD4E9BC3E25AB21AF73DA4DB3C4DA9244DF5635CF5D4C272783244A0D514",
 				configValues:        "foo: bar\n",
 				configValuesContent: "foo: baz\n",
 			},
 		}, {
+			name: "Chart and Config (bootstrap)",
+			args: args{
+				hash:                "SHA256=591076A4F560F437686B9F49876598B4AB61E6672BC3AD09046A46ADE5D59B6E",
+				chartValuesContent:  "foo: bar\n",
+				configValuesContent: "foo: baz\n",
+				bootstrap:           true,
+			},
+		}, {
 			name: "Chart and Config 1",
 			args: args{
-				hash:                "SHA256=B86FFB50BF565CA143439489CF8F503B6AF098E17A0C3D0F69080E8D41F8B4CC",
+				hash:                "SHA256=591076A4F560F437686B9F49876598B4AB61E6672BC3AD09046A46ADE5D59B6E",
 				chartValuesContent:  "foo: bar\n",
 				configValuesContent: "foo: baz\n",
 			},
 		}, {
 			name: "Chart and Config 2",
 			args: args{
-				hash:                "SHA256=D0F1C546974B380D11B3A33F893AF0AE7C3131ACFE7FE22476C2AAA7E6160A43",
+				hash:                "SHA256=2F969634ABEFAEBFA800C8A725EDC96DE5361F6AB0FBE3E4FCD48EF5B903D8AB",
 				chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
 				configValuesContent: "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
 			},
 		}, {
 			name: "Chart and Config 3",
 			args: args{
-				hash:         "SHA256=586EEB058FB147690F546AEAE7C238A551759C08881E3BFCE7544A7FAFAC8187",
+				hash:         "SHA256=447A6CB9719F2A95476284DB44517E3F9A9395521427663DBBFD83A6CA4B2C7D",
 				chartValues:  "foo: bar\n",
 				configValues: "foo: baz\n",
 			},
 		}, {
 			name: "Chart and Config 4",
 			args: args{
-				hash:                "SHA256=FE2783C8C7924587AC654A29AF97911503A6C704F3DECD3C4DA80B24703CECC8",
+				hash:                "SHA256=84143FB884E39F719D5041FE7C3486DD1C3DC08CDFCBA7CAAAE73F6F0F336FE2",
 				chartValues:         "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
 				chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
 				configValues:        "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
@@ -132,7 +157,7 @@ func TestHashObjects(t *testing.T) {
 			// note: both deleted charts have the same hash, as values secrets and content configmaps are not generated when deleting
 			name: "Deleted 1",
 			args: args{
-				hash:                "SHA256=0807D189F31BF3EB82FA02EFB047A110F132004D37C50B02C8238AD07CC281D1",
+				hash:                "SHA256=F1D05B70BBD127B3488293FFE791D47E8D1DA79F96FEC32D7750892D7512598A",
 				chartValues:         "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
 				chartValuesContent:  "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
 				configValues:        "bar:\n  a: false\n  b: 0\n  c: 'false'\n",
@@ -142,7 +167,7 @@ func TestHashObjects(t *testing.T) {
 		}, {
 			name: "Deleted 2",
 			args: args{
-				hash:        "SHA256=0807D189F31BF3EB82FA02EFB047A110F132004D37C50B02C8238AD07CC281D1",
+				hash:        "SHA256=F1D05B70BBD127B3488293FFE791D47E8D1DA79F96FEC32D7750892D7512598A",
 				chartValues: "foo:\n  a: true\n  b: 1\n  c: 'true'\n",
 				deleted:     true,
 			},
