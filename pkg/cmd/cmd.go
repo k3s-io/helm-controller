@@ -10,7 +10,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/k3s-io/helm-controller/pkg/config"
 	"github.com/k3s-io/helm-controller/pkg/controllers"
-	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	"github.com/k3s-io/helm-controller/pkg/crds"
 	"github.com/rancher/wrangler/v3/pkg/crd"
 	"github.com/rancher/wrangler/v3/pkg/kubeconfig"
@@ -35,7 +34,7 @@ func SetupLogging(debug bool, level int) (logr.Logger, error) {
 		logrus.SetLevel(logrus.TraceLevel)
 	}
 	logrus.SetFormatter(&logrus.TextFormatter{DisableQuote: true})
-	logger := common.NewLogrusSink(nil).AsLogr()
+	logger := controllers.NewLogrusSink(nil).AsLogr()
 	klog.SetLoggerWithOptions(logger, klog.ContextualLogger(true))
 	return logger, nil
 }

@@ -3,7 +3,7 @@ package app
 import (
 	"github.com/k3s-io/helm-controller/pkg/cmd"
 	"github.com/k3s-io/helm-controller/pkg/config"
-	"github.com/k3s-io/helm-controller/pkg/version"
+	"github.com/k3s-io/helm-controller/pkg/controllers"
 	"github.com/urfave/cli/v2"
 )
 
@@ -13,7 +13,7 @@ func New() *cli.App {
 	return &cli.App{
 		Name:        "helm-controller",
 		Description: "A simple way to manage helm charts with CRDs in K8s.",
-		Version:     version.FriendlyVersion(),
+		Version:     controllers.FriendlyVersion(),
 		Action: func(app *cli.Context) error {
 			return cmd.Run(app.Context, cliconfig)
 		},

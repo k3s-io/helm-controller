@@ -37,8 +37,15 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const Name = "helm-controller"
+
 const (
 	eventLogLevel klog.Level = 0
+)
+
+var (
+	Version   = "v0.0.0-dev"
+	GitCommit = "HEAD"
 )
 
 type appContext struct {
@@ -58,6 +65,10 @@ type appContext struct {
 
 func (a *appContext) start(ctx context.Context) error {
 	return start.All(ctx, 50, a.starters...)
+}
+
+func FriendlyVersion() string {
+	return fmt.Sprintf("%s (%s)", Version, GitCommit)
 }
 
 func Register(ctx context.Context, systemNamespace, controllerName string, cfg clientcmd.ClientConfig, opts *config.Controller) error {

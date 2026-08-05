@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -1215,7 +1214,7 @@ func keys(val map[string]intstr.IntOrString) []string {
 	for k := range val {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }
 
@@ -1488,7 +1487,7 @@ func hashObjects(job *batch.Job, objs ...metav1.Object) {
 				for k := range data {
 					keys = append(keys, k)
 				}
-				sort.Strings(keys)
+				slices.Sort(keys)
 				for _, k := range keys {
 					hash.Write([]byte(k))
 					hash.Write([]byte(data[k]))

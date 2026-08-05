@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine3.23 AS builder
+FROM rancher/hardened-build-base:v1.26.5b2 AS builder
 
 RUN apk add --no-cache bash git gcc musl-dev
 
@@ -16,15 +16,15 @@ FROM scratch AS binary
 COPY --from=builder /src/bin/helm-controller /bin/
 
 # Dev stage for package, testing, and validation
-FROM golang:1.25-alpine3.23 AS dev
+FROM rancher/hardened-build-base:v1.26.5b2 AS dev
 ARG ARCH
 ENV ARCH=$ARCH
 RUN apk add --no-cache bash git curl
 RUN if [ "${ARCH}" != "arm" ]; then \
-    GOLANGCI_VERSION=v2.7.2 && \
+    GOLANGCI_VERSION=v2.12.2 && \
     case "${ARCH}" in \
-        amd64) GOLANGCI_SHA256="ce46a1f1d890e7b667259f70bb236297f5cf8791a9b6b98b41b283d93b5b6e88" ;; \
-        arm64) GOLANGCI_SHA256="7028e810837722683dab679fb121336cfa303fecff39dfe248e3e36bc18d941b" ;; \
+        amd64) GOLANGCI_SHA256="8df580d2670fed8fa984aac0507099af8df275e665215f5c7a2ae3943893a553" ;; \
+        arm64) GOLANGCI_SHA256="sha256:44cd40a8c76c86755375adfeea52cfd3533cb43d7bd647771e0ae065e166df3a" ;; \
         *) echo "Unsupported architecture for golangci-lint: ${ARCH}" && exit 1 ;; \
     esac && \
     cd /tmp && \
@@ -36,7 +36,7 @@ RUN if [ "${ARCH}" != "arm" ]; then \
 RUN --mount=type=cache,id=gomod,target=/go/pkg/mod \
     --mount=type=cache,id=gobuild,target=/root/.cache/go-build \
     if [ "${ARCH}" = "amd64" ]; then \
-      go install sigs.k8s.io/kustomize/kustomize/v5@1155ccbe3c1fc56cbbd82847899f86c7b824e005; \
+      go install sigs.k8s.io/kustomize/kustomize/v5@9790a1c3efd2fd35f1b768d495112834176581c1; \
     fi
 
 WORKDIR /src

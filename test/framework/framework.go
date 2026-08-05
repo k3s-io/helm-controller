@@ -16,8 +16,8 @@ import (
 	"k8s.io/utils/ptr"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	"github.com/k3s-io/helm-controller/pkg/controllers"
 	chartcontroller "github.com/k3s-io/helm-controller/pkg/controllers/chart"
-	"github.com/k3s-io/helm-controller/pkg/controllers/common"
 	"github.com/k3s-io/helm-controller/pkg/controllers/extjson"
 	helmcrd "github.com/k3s-io/helm-controller/pkg/crds"
 	helmcln "github.com/k3s-io/helm-controller/pkg/generated/clientset/versioned"
@@ -112,8 +112,8 @@ func (f *Framework) beforeFramework() {
 	f.HelmClientSet = helmcln
 	f.ClientSet = clientset
 	f.ClientExt = clientext
-	f.Name = common.Name
-	f.Namespace = common.Name
+	f.Name = controllers.Name
+	f.Namespace = controllers.Name
 }
 
 func errExit(msg string, err error) {
@@ -409,7 +409,7 @@ func (f *Framework) GetChartContent(url string) (string, error) {
 	if err := w.Close(); err != nil {
 		return "", err
 	}
-	return string(b.Bytes()), nil
+	return b.String(), nil
 }
 
 // GetHelmChartCondition returns true if there is a condition on the chart matching the selected type, status, and reason
@@ -439,7 +439,7 @@ func (f *Framework) CreateNamespace(name string, activate bool) error {
 func (f *Framework) DeleteNamespace(name string, deactivate bool) error {
 	err := f.ClientSet.CoreV1().Namespaces().Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if deactivate {
-		f.Namespace = common.Name
+		f.Namespace = controllers.Name
 	}
 	return err
 }
