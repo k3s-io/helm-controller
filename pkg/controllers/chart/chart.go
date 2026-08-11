@@ -700,8 +700,13 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 func (c *Controller) getChartRelease(chart *v1.HelmChart) (release, error) {
 	ls := labels.Set{"owner": "helm", "name": chart.Name}.AsSelector()
 
+	targetNamespace := chart.Namespace
+	if len(chart.Spec.TargetNamespace) != 0 {
+		targetNamespace = chart.Spec.TargetNamespace
+	}
+
 	if helmDriver(chart) == "configmap" {
-		cmList, err := c.configMaps.List(chart.Spec.TargetNamespace, metav1.ListOptions{LabelSelector: ls.String()})
+		cmList, err := c.configMaps.List(targetNamespace, metav1.ListOptions{LabelSelector: ls.String()})
 		if err != nil {
 			return release{}, err
 		}
@@ -713,7 +718,7 @@ func (c *Controller) getChartRelease(chart *v1.HelmChart) (release, error) {
 	}
 
 	fs := fields.OneTermEqualSelector("type", ReleaseType)
-	secretList, err := c.secrets.List(chart.Spec.TargetNamespace, metav1.ListOptions{FieldSelector: fs.String(), LabelSelector: ls.String()})
+	secretList, err := c.secrets.List(targetNamespace, metav1.ListOptions{FieldSelector: fs.String(), LabelSelector: ls.String()})
 	if err != nil {
 		return release{}, err
 	}
