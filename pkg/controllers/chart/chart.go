@@ -52,9 +52,10 @@ const (
 
 	KeyConfigHash = "helmcharts.helm.cattle.io/configHash"
 
-	AnnotationChartURL  = "helm.cattle.io/chart-url"
-	AnnotationManagedBy = "helmcharts.cattle.io/managed-by"
-	AnnotationUnmanaged = "helmcharts.helm.cattle.io/unmanaged"
+	AnnotationChartURL    = "helm.cattle.io/chart-url"
+	AnnotationManagedBy   = "helmcharts.cattle.io/managed-by"
+	AnnotationUnmanaged   = "helmcharts.helm.cattle.io/unmanaged"
+	AnnotationReplaceWait = "helmcharts.helm.cattle.io/replace-wait"
 
 	LabelChartName          = "helmcharts.helm.cattle.io/chart"
 	LabelNodeRolePrefix     = "node-role.kubernetes.io/"
@@ -63,6 +64,12 @@ const (
 
 	chartBySecretIndex       = "helmcharts.helm.cattle.io/chart-by-secret"
 	chartConfigBySecretIndex = "helmcharts.helm.cattle.io/chartconfig-by-secret"
+
+	// DO NOT USE THIS
+	// These are only to be used by the test framework, where we need to create
+	// jobs that the core Kubernetes job controller will not act on.
+	AnnotationJobManager = "helmcharts.helm.cattle.io/job-manager"
+	DefaultJobManager    = "kubernetes.io/job-controller"
 )
 
 var (
@@ -197,6 +204,14 @@ func (c *Controller) reconcileJob(_, newObj runtime.Object) (bool, error) {
 	oldJob, err := c.jobCache.Get(newJob.Namespace, newJob.Name)
 	if err != nil {
 		return false, err
+	}
+	// Add an annotation to the job to prevent jobReady from resuming a job that
+	// we are waiting to delete.
+	if _, ok := oldJob.Annotations[AnnotationReplaceWait]; !ok {
+		b := fmt.Appendf(nil, `{"metadata":{"annotations":{%q:"true"}}}`, AnnotationReplaceWait)
+		if _, err := c.jobs.Patch(oldJob.Namespace, oldJob.Name, types.StrategicMergePatchType, b); err != nil {
+			return false, err
+		}
 	}
 	// To avoid racing, we want to avoid creating and deleting jobs faster than
 	// the controller can keep up. The addition of at least one condition
@@ -746,16 +761,16 @@ func (c *Controller) jobFailed(chart *v1.HelmChart) bool {
 	return false
 }
 
-// jobReady returns true if the job is suspended, has never been started, and
-// the Job controller has added a True Suspended condition to the job for the
-// given chart. The addition of this condition indicates that the controller
-// has observed and synced the job at least once.
+// jobReady returns true if the has never been started, is not waiting to be
+// replaced, is suspended, and the Job controller has added a True Suspended
+// condition to the job for the given chart. The addition of this condition
+// indicates that the controller has observed and synced the job at least once.
 // We create jobs suspended, and look for generation == 1 to indicate that the
 // job has not potentially previously run; we cannot look at status.startTime as
 // this is cleared when the job is suspended.
 func (c *Controller) jobReady(chart *v1.HelmChart) bool {
 	job, _ := c.jobCache.Get(chart.Namespace, jobName(chart))
-	if job != nil && job.Generation == 1 && job.Spec.Suspend != nil && *job.Spec.Suspend {
+	if job != nil && job.Generation == 1 && job.Annotations[AnnotationReplaceWait] == "" && job.Spec.Suspend != nil && *job.Spec.Suspend {
 		for _, condition := range job.Status.Conditions {
 			if condition.Type == batch.JobSuspended {
 				return condition.Status == corev1.ConditionTrue
@@ -978,6 +993,10 @@ func job(chart *v1.HelmChart, apiServerPort string) (*batch.Job, *corev1.Secret,
 				},
 			},
 		},
+	}
+
+	if jobManager := chart.Annotations[AnnotationJobManager]; jobManager != "" && jobManager != DefaultJobManager {
+		job.Spec.ManagedBy = ptr.To(jobManager)
 	}
 
 	if chart.Spec.Timeout != nil {

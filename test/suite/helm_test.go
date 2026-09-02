@@ -11,6 +11,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
+	chartcontroller "github.com/k3s-io/helm-controller/pkg/controllers/chart"
 	"github.com/k3s-io/helm-controller/test/framework"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -1553,6 +1554,98 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Delete(ctx, policyName, metav1.DeleteOptions{})
 			framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicies().Delete(ctx, policyName, metav1.DeleteOptions{})
 
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
+	Context("When config changes before the job is synced", func() {
+		var (
+			err   error
+			chart *v1.HelmChart
+		)
+		BeforeAll(func(ctx SpecContext) {
+			chart = framework.NewHelmChart("traefik-example",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			// use custom job manager so that the job doesn't get handled by core kubernetes job controller
+			chart.Annotations = map[string]string{chartcontroller.AnnotationJobManager: "helmcharts.helm.cattle.io/test-suite"}
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should create the job suspended", func() {
+			Eventually(getJobIgnoreNotFound, 30*time.Second, 5*time.Second).WithArguments(chart.Namespace, chart.Name).Should(HaveField("Spec.Suspend", HaveValue(BeTrue())))
+		})
+
+		Specify("HelmChartConfig is created", func() {
+			chartConfig := framework.NewHelmChartConfig(chart.Name, "", "metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n")
+			_, err = framework.CreateHelmChartConfig(chartConfig, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Specify("Suspended condition and finalizer are added to the job", func(ctx SpecContext) {
+			Eventually(func(g Gomega) {
+				jobName := "helm-install-" + chart.Name
+				job, err := framework.ClientSet.BatchV1().Jobs(chart.Namespace).Get(context.TODO(), jobName, metav1.GetOptions{})
+				g.Expect(err).NotTo(HaveOccurred())
+
+				job.Finalizers = []string{"helmcharts.helm.cattle.io/test-suite"}
+				job, err = framework.ClientSet.BatchV1().Jobs(job.Namespace).Update(ctx, job, metav1.UpdateOptions{})
+				g.Expect(err).NotTo(HaveOccurred())
+
+				now := metav1.Now()
+				job.Status.Conditions = []batchv1.JobCondition{{
+					Type:               batchv1.JobSuspended,
+					Status:             corev1.ConditionTrue,
+					Reason:             "JobSuspended",
+					Message:            "Job suspended",
+					LastProbeTime:      now,
+					LastTransitionTime: now,
+				}}
+				job, err = framework.ClientSet.BatchV1().Jobs(job.Namespace).UpdateStatus(ctx, job, metav1.UpdateOptions{})
+				g.Expect(err).NotTo(HaveOccurred())
+			}, 30*time.Second, 5*time.Second).Should(Succeed())
+		})
+
+		It("Should delete the job without resuming it first", func() {
+			Eventually(getJobIgnoreNotFound, 30*time.Second, 5*time.Second).WithArguments(chart.Namespace, chart.Name).Should(And(
+				HaveField("ObjectMeta.DeletionTimestamp", Not(BeNil())),
+				HaveField("Spec.Suspend", HaveValue(BeTrue())),
+			))
+		})
+
+		Specify("Clear custom job manager and finalizer before delete", func(ctx SpecContext) {
+			jobName := "helm-install-" + chart.Name
+			job, err := framework.ClientSet.BatchV1().Jobs(chart.Namespace).Get(context.TODO(), jobName, metav1.GetOptions{})
+
+			Expect(err).NotTo(HaveOccurred())
+			job.Finalizers = []string{}
+			_, err = framework.ClientSet.BatchV1().Jobs(job.Namespace).Update(ctx, job, metav1.UpdateOptions{})
+			Expect(err).NotTo(HaveOccurred())
+
+			delete(chart.Annotations, chartcontroller.AnnotationJobManager)
+			chart, err = framework.UpdateHelmChart(chart, chart.Namespace)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		AfterAll(func(ctx SpecContext) {
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
