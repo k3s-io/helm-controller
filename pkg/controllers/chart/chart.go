@@ -10,7 +10,6 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -38,7 +37,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
@@ -98,25 +96,18 @@ type Controller struct {
 	managedBy       string
 	systemNamespace string
 	logger          klog.Logger
-	helms           helmcontroller.HelmChartController
-	helmCache       helmcontroller.HelmChartCache
-	confs           helmcontroller.HelmChartConfigController
-	confCache       helmcontroller.HelmChartConfigCache
-	jobs            batchcontroller.JobController
-	jobCache        batchcontroller.JobCache
-	configMaps      configMapLister
-	secrets         secretLister
-	secretCache     corecontroller.SecretCache
 	apply           apply.Apply
 	recorder        record.EventRecorder
-}
-
-type configMapLister interface {
-	List(namespace string, opts metav1.ListOptions) (*corev1.ConfigMapList, error)
-}
-
-type secretLister interface {
-	List(namespace string, opts metav1.ListOptions) (*corev1.SecretList, error)
+	helms           helmcontroller.HelmChartClient
+	helmCache       helmcontroller.HelmChartCache
+	confs           helmcontroller.HelmChartConfigClient
+	confCache       helmcontroller.HelmChartConfigCache
+	jobs            batchcontroller.JobClient
+	jobCache        batchcontroller.JobCache
+	configMaps      corecontroller.ConfigMapClient
+	configMapsCache corecontroller.ConfigMapCache
+	secrets         corecontroller.SecretClient
+	secretCache     corecontroller.SecretCache
 }
 
 func Register(
@@ -125,64 +116,53 @@ func Register(
 	managedBy,
 	jobClusterRole string,
 	apiServerPort string,
-	k8s kubernetes.Interface,
 	apply apply.Apply,
 	recorder record.EventRecorder,
-	helms helmcontroller.HelmChartController,
-	helmCache helmcontroller.HelmChartCache,
-	confs helmcontroller.HelmChartConfigController,
-	confCache helmcontroller.HelmChartConfigCache,
-	jobs batchcontroller.JobController,
-	jobCache batchcontroller.JobCache,
-	crbs rbaccontroller.ClusterRoleBindingController,
-	sas corecontroller.ServiceAccountController,
-	cm corecontroller.ConfigMapController,
-	s corecontroller.SecretController,
-	sCache corecontroller.SecretCache) {
+	batch batchcontroller.Interface,
+	core corecontroller.Interface,
+	helm helmcontroller.Interface,
+	rbac rbaccontroller.Interface,
+) {
 	c := &Controller{
 		apiServerPort:   apiServerPort,
 		jobClusterRole:  jobClusterRole,
 		managedBy:       managedBy,
 		systemNamespace: systemNamespace,
-		logger:          klog.FromContext(ctx),
-		helms:           helms,
-		helmCache:       helmCache,
-		confs:           confs,
-		confCache:       confCache,
-		jobs:            jobs,
-		jobCache:        jobCache,
-		configMaps:      cm,
-		secrets:         s,
-		secretCache:     sCache,
 		recorder:        recorder,
+		logger:          klog.FromContext(ctx),
+		helms:           helm.HelmChart(),
+		helmCache:       helm.HelmChart().Cache(),
+		confs:           helm.HelmChartConfig(),
+		confCache:       helm.HelmChartConfig().Cache(),
+		jobs:            batch.Job(),
+		jobCache:        batch.Job().Cache(),
+		configMaps:      core.ConfigMap(),
+		configMapsCache: core.ConfigMap().Cache(),
+		secrets:         core.Secret(),
+		secretCache:     core.Secret().Cache(),
 	}
 
+	// Prefix the handler name with the managedBy string, and use this as the controller ID when applying.
+	// This ensures that multiple controllers do not attempt to clean up each others resources when removing
+	// managed objects.
+	statusHandlerName := fmt.Sprintf("%s-chart-registration", managedBy)
+
 	c.apply = apply.
-		WithCacheTypes(helms, confs, jobs, crbs, sas, cm, s).
+		WithCacheTypes(helm.HelmChart(), helm.HelmChartConfig(), batch.Job(), rbac.ClusterRoleBinding(), core.ServiceAccount(), core.ConfigMap(), core.Secret()).
+		WithSetID(statusHandlerName).
 		WithStrictCaching().
-		WithReconciler(jobs.GroupVersionKind(), c.reconcileJob)
+		WithReconciler(batch.Job().GroupVersionKind(), c.reconcileJob)
 
-	helmCache.AddIndexer(chartBySecretIndex, chartBySecret)
-	confCache.AddIndexer(chartConfigBySecretIndex, chartConfigBySecret)
+	c.helmCache.AddIndexer(chartBySecretIndex, chartBySecret)
+	c.confCache.AddIndexer(chartConfigBySecretIndex, chartConfigBySecret)
 
-	relatedresource.Watch(ctx, "resolve-helm-chart-from-helm-chart-config", c.resolveHelmChartFromHelmChartConfig, helms, confs)
-	relatedresource.Watch(ctx, "resolve-helm-chart-from-secret", c.resolveHelmChartFromSecret, helms, s)
-	relatedresource.Watch(ctx, "resolve-helm-chart-config-from-secret", c.resolveHelmChartConfigFromSecret, confs, s)
+	relatedresource.Watch(ctx, "resolve-helm-chart-from-helm-chart-config", c.resolveHelmChartFromHelmChartConfig, helm.HelmChart(), helm.HelmChartConfig())
+	relatedresource.Watch(ctx, "resolve-helm-chart-from-secret", c.resolveHelmChartFromSecret, helm.HelmChart(), core.Secret())
+	relatedresource.Watch(ctx, "resolve-helm-chart-config-from-secret", c.resolveHelmChartConfigFromSecret, helm.HelmChartConfig(), core.Secret())
 
-	// Why do we need to add the managedBy string to the generatingHandlerName?
-	//
-	// By default, generating handlers use the name of the controller as the set ID for the wrangler.apply operation
-	// Therefore, if multiple iterations of the helm-controller are using the same set ID, they will try to overwrite each other's
-	// resources since each controller will detect the other's set as resources that need to be cleaned up to apply the new set
-	//
-	// To resolve this, we simply prefix the provided managedBy string to the generatingHandler controller's name only to ensure that the
-	// set ID specified will only target this particular controller
-	generatingHandlerName := fmt.Sprintf("%s-chart-registration", managedBy)
-	helmcontroller.RegisterHelmChartGeneratingHandler(ctx, helms, c.apply, "", generatingHandlerName, c.OnChange, &generic.GeneratingHandlerOptions{
-		AllowClusterScoped: true,
-	})
+	helmcontroller.RegisterHelmChartStatusHandler(ctx, helm.HelmChart(), "", statusHandlerName, c.OnChange)
 
-	remove.RegisterScopedOnRemoveHandler(ctx, helms, "on-helm-chart-remove",
+	remove.RegisterScopedOnRemoveHandler(ctx, helm.HelmChart(), "on-helm-chart-remove",
 		func(key string, obj runtime.Object) (bool, error) {
 			if obj == nil {
 				return false, nil
@@ -198,9 +178,10 @@ func Register(
 
 	relatedresource.Watch(ctx, "resolve-helm-chart-owned-resources",
 		relatedresource.OwnerResolver(true, v1.SchemeGroupVersion.String(), "HelmChart"),
-		helms,
-		jobs, crbs, sas, cm,
+		helm.HelmChart(),
+		batch.Job(), rbac.ClusterRoleBinding(), core.ServiceAccount(), core.ConfigMap(),
 	)
+	c.logger.Info("Registered handlers for " + statusHandlerName)
 }
 
 // reconcileJob triggers recreation of the Job if the pod template spec changes.
@@ -304,16 +285,16 @@ func (c *Controller) resolveHelmChartConfigFromSecret(namespace, name string, ob
 	return nil, nil
 }
 
-func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatus) ([]runtime.Object, v1.HelmChartStatus, error) {
+func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatus) (v1.HelmChartStatus, error) {
 	if shouldManage, err := c.shouldManage(chart); err != nil {
-		return nil, chartStatus, err
+		return chartStatus, err
 	} else if !shouldManage {
-		return nil, chartStatus, nil
+		return chartStatus, nil
 	}
 
 	if chart.DeletionTimestamp != nil {
 		// this should only be called if the chart is being deleted
-		return nil, chartStatus, nil
+		return chartStatus, nil
 	}
 
 	switch chart.Spec.HelmVersion {
@@ -332,7 +313,7 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 				Message: "Only Helm v3 charts are supported",
 			},
 		}
-		return nil, chartStatus, nil
+		return chartStatus, nil
 	}
 
 	if c.jobFailed(chart) {
@@ -353,7 +334,7 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 			},
 		}
 		if _, err := c.helms.UpdateStatus(chartCopy); err != nil {
-			return nil, chartStatus, fmt.Errorf("unable to update status of helm chart to set failed condition: %w", err)
+			return chartStatus, fmt.Errorf("unable to update status of helm chart to set failed condition: %w", err)
 		}
 	}
 
@@ -365,9 +346,9 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 	// job as resumed.
 	if c.jobReady(chart) {
 		if err := c.setJobSuspended(chart, false); err != nil {
-			return nil, chartStatus, fmt.Errorf("failed to resume job: %w", err)
+			return chartStatus, fmt.Errorf("failed to resume job: %w", err)
 		}
-		return nil, chartStatus, generic.ErrSkip
+		return chartStatus, generic.ErrSkip
 	}
 
 	// getJobAndRelatedResources may return ErrSkip if no changes are necessary for the job,
@@ -386,7 +367,7 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 				Message: fmt.Sprintf("Failed to generate Job: %v", err),
 			},
 		}
-		return nil, chartStatus, err
+		return chartStatus, err
 	}
 
 	// update status
@@ -413,7 +394,17 @@ func (c *Controller) OnChange(chart *v1.HelmChart, chartStatus v1.HelmChartStatu
 	annotations := map[string]string{KeyConfigHash: job.Spec.Template.ObjectMeta.Annotations[KeyConfigHash]}
 	c.recorder.AnnotatedEventf(chart, annotations, corev1.EventTypeNormal, "ApplyJob", "Applying HelmChart from %s using Job %s/%s ", chartSource(chart), job.Namespace, job.Name)
 
-	return append(objs, job), chartStatus, nil
+	// prepare apply for two-stage object create
+	apply := c.apply.WithOwner(chart).WithNoDelete()
+
+	// apply dependent objects first
+	if err := apply.ApplyObjects(objs...); err != nil {
+		return chartStatus, err
+	}
+
+	// only apply job if all objects were created successfully
+	objs = append(objs, job)
+	return chartStatus, apply.ApplyObjects(objs...)
 }
 
 func (c *Controller) OnRemove(key string, chart *v1.HelmChart) (*v1.HelmChart, error) {
@@ -670,7 +661,7 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 			)
 		}
 	} else {
-		// job is not complete, do not modify the job if the template has not changed
+		// job is not complete, skip if all resources exist and the template has not changed
 		if oldJob, err := c.jobCache.Get(job.Namespace, job.Name); err == nil && !templateChanged(oldJob, job) {
 			return job, nil, generic.ErrSkip
 		}
@@ -732,7 +723,7 @@ func (c *Controller) getChartRelease(chart *v1.HelmChart) (release, error) {
 // jobComplete returns true if the job controller has added a True Completed
 // condition to the job for the given chart.
 func (c *Controller) jobComplete(chart *v1.HelmChart) bool {
-	if job, _ := c.jobs.Cache().Get(chart.Namespace, jobName(chart)); job != nil {
+	if job, _ := c.jobCache.Get(chart.Namespace, jobName(chart)); job != nil {
 		for _, condition := range job.Status.Conditions {
 			if condition.Type == batch.JobComplete {
 				return condition.Status == corev1.ConditionTrue
@@ -745,7 +736,7 @@ func (c *Controller) jobComplete(chart *v1.HelmChart) bool {
 // jobFailed returns true if the job controller has added a True Failed
 // condition to the job for the given chart.
 func (c *Controller) jobFailed(chart *v1.HelmChart) bool {
-	if job, _ := c.jobs.Cache().Get(chart.Namespace, jobName(chart)); job != nil {
+	if job, _ := c.jobCache.Get(chart.Namespace, jobName(chart)); job != nil {
 		for _, condition := range job.Status.Conditions {
 			if condition.Type == batch.JobFailed {
 				return condition.Status == corev1.ConditionTrue
@@ -763,7 +754,7 @@ func (c *Controller) jobFailed(chart *v1.HelmChart) bool {
 // job has not potentially previously run; we cannot look at status.startTime as
 // this is cleared when the job is suspended.
 func (c *Controller) jobReady(chart *v1.HelmChart) bool {
-	job, _ := c.jobs.Cache().Get(chart.Namespace, jobName(chart))
+	job, _ := c.jobCache.Get(chart.Namespace, jobName(chart))
 	if job != nil && job.Generation == 1 && job.Spec.Suspend != nil && *job.Spec.Suspend {
 		for _, condition := range job.Status.Conditions {
 			if condition.Type == batch.JobSuspended {
@@ -1235,7 +1226,7 @@ func keys(val map[string]intstr.IntOrString) []string {
 	for k := range val {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }
 
@@ -1508,7 +1499,7 @@ func hashObjects(job *batch.Job, objs ...metav1.Object) {
 				for k := range data {
 					keys = append(keys, k)
 				}
-				sort.Strings(keys)
+				slices.Sort(keys)
 				for _, k := range keys {
 					hash.Write([]byte(k))
 					hash.Write([]byte(data[k]))

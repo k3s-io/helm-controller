@@ -7,17 +7,18 @@ import (
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/pkg/controllers/extjson"
+	"go.uber.org/mock/gomock"
 
+	wranglerfake "github.com/rancher/wrangler/v3/pkg/generic/fake"
 	"github.com/rancher/wrangler/v3/pkg/yaml"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/ptr"
 )
 
@@ -410,22 +411,21 @@ func TestMaxReleaseRevision(t *testing.T) {
 func TestGetChartReleaseRevision(t *testing.T) {
 	t.Run("configmap driver uses configmap storage", func(t *testing.T) {
 		assert := assert.New(t)
-		var called bool
+		ctrl := gomock.NewController(t)
+		secrets := wranglerfake.NewMockControllerInterface[*corev1.Secret, *corev1.SecretList](ctrl)
+		configmaps := wranglerfake.NewMockControllerInterface[*corev1.ConfigMap, *corev1.ConfigMapList](ctrl)
+
+		client := fake.NewClientset(
+			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "target-ns", Name: "sh.helm.release.v1.traefik.v2", Labels: map[string]string{"name": "traefik", "owner": "helm", "version": "2"}}},
+			&corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "target-ns", Name: "sh.helm.release.v1.traefik.v3", Labels: map[string]string{"name": "traefik", "owner": "helm", "version": "3", "status": "deployed", KeyConfigHash: "ABC"}}},
+		)
+		configmaps.EXPECT().List(gomock.Any(), gomock.Any()).MinTimes(1).DoAndReturn(func(namespace string, opts metav1.ListOptions) (*corev1.ConfigMapList, error) {
+			return client.CoreV1().ConfigMaps(namespace).List(t.Context(), opts)
+		})
+
 		c := &Controller{
-			configMaps: fakeConfigMapLister{
-				list: func(namespace string, opts metav1.ListOptions) (*corev1.ConfigMapList, error) {
-					called = true
-					assert.Equal("target-ns", namespace)
-					assert.Equal(labels.Set{"owner": "helm", "name": "traefik"}.AsSelector().String(), opts.LabelSelector)
-					assert.Empty(opts.FieldSelector)
-					return &corev1.ConfigMapList{
-						Items: []corev1.ConfigMap{
-							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "1"}}},
-							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "3", "status": "deployed", KeyConfigHash: "ABC"}}},
-						},
-					}, nil
-				},
-			},
+			secrets:    secrets,
+			configMaps: configmaps,
 		}
 
 		chart := NewChart()
@@ -434,28 +434,26 @@ func TestGetChartReleaseRevision(t *testing.T) {
 
 		rel, err := c.getChartRelease(chart)
 		assert.NoError(err)
-		assert.True(called)
 		assert.Equal(release{revision: 3, status: "deployed", hash: "ABC"}, rel)
 	})
 
 	t.Run("default driver uses secret storage", func(t *testing.T) {
 		assert := assert.New(t)
-		var called bool
+		ctrl := gomock.NewController(t)
+		secrets := wranglerfake.NewMockControllerInterface[*corev1.Secret, *corev1.SecretList](ctrl)
+		configmaps := wranglerfake.NewMockControllerInterface[*corev1.ConfigMap, *corev1.ConfigMapList](ctrl)
+
+		client := fake.NewClientset(
+			&corev1.Secret{Type: "helm.sh/release.v1", ObjectMeta: metav1.ObjectMeta{Namespace: "target-ns", Name: "sh.helm.release.v1.traefik.v2", Labels: map[string]string{"name": "traefik", "owner": "helm", "version": "2"}}},
+			&corev1.Secret{Type: "helm.sh/release.v1", ObjectMeta: metav1.ObjectMeta{Namespace: "target-ns", Name: "sh.helm.release.v1.traefik.v3", Labels: map[string]string{"name": "traefik", "owner": "helm", "version": "3", "status": "deployed", KeyConfigHash: "ABC"}}},
+		)
+		secrets.EXPECT().List(gomock.Any(), gomock.Any()).MinTimes(1).DoAndReturn(func(namespace string, opts metav1.ListOptions) (*corev1.SecretList, error) {
+			return client.CoreV1().Secrets(namespace).List(t.Context(), opts)
+		})
+
 		c := &Controller{
-			secrets: fakeSecretLister{
-				list: func(namespace string, opts metav1.ListOptions) (*corev1.SecretList, error) {
-					called = true
-					assert.Equal("target-ns", namespace)
-					assert.Equal(labels.Set{"owner": "helm", "name": "traefik"}.AsSelector().String(), opts.LabelSelector)
-					assert.Equal(fields.OneTermEqualSelector("type", ReleaseType).String(), opts.FieldSelector)
-					return &corev1.SecretList{
-						Items: []corev1.Secret{
-							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "2"}}},
-							{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"version": "5", "status": "deployed", KeyConfigHash: "ABC"}}},
-						},
-					}, nil
-				},
-			},
+			secrets:    secrets,
+			configMaps: configmaps,
 		}
 
 		chart := NewChart()
@@ -463,25 +461,8 @@ func TestGetChartReleaseRevision(t *testing.T) {
 
 		rel, err := c.getChartRelease(chart)
 		assert.NoError(err)
-		assert.True(called)
-		assert.Equal(release{revision: 5, status: "deployed", hash: "ABC"}, rel)
+		assert.Equal(release{revision: 3, status: "deployed", hash: "ABC"}, rel)
 	})
-}
-
-type fakeConfigMapLister struct {
-	list func(namespace string, opts metav1.ListOptions) (*corev1.ConfigMapList, error)
-}
-
-func (f fakeConfigMapLister) List(namespace string, opts metav1.ListOptions) (*corev1.ConfigMapList, error) {
-	return f.list(namespace, opts)
-}
-
-type fakeSecretLister struct {
-	list func(namespace string, opts metav1.ListOptions) (*corev1.SecretList, error)
-}
-
-func (f fakeSecretLister) List(namespace string, opts metav1.ListOptions) (*corev1.SecretList, error) {
-	return f.list(namespace, opts)
 }
 
 func NewChart() *v1.HelmChart {

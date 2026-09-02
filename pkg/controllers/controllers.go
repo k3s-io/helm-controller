@@ -42,18 +42,18 @@ const (
 )
 
 type appContext struct {
-	helmcontroller.Interface
+	Apply apply.Apply
 
 	K8s   kubernetes.Interface
+	Helm  helmcontroller.Interface
 	Core  corecontroller.Interface
 	RBAC  rbaccontroller.Interface
 	Batch batchcontroller.Interface
 
-	Apply            apply.Apply
 	EventBroadcaster record.EventBroadcaster
+	ClientConfig     clientcmd.ClientConfig
 
-	ClientConfig clientcmd.ClientConfig
-	starters     []start.Starter
+	starters []start.Starter
 }
 
 func (a *appContext) start(ctx context.Context) error {
@@ -96,20 +96,12 @@ func Register(ctx context.Context, systemNamespace, controllerName string, cfg c
 		controllerName,
 		opts.JobClusterRole,
 		"6443",
-		appCtx.K8s,
 		appCtx.Apply,
 		recorder,
-		appCtx.HelmChart(),
-		appCtx.HelmChart().Cache(),
-		appCtx.HelmChartConfig(),
-		appCtx.HelmChartConfig().Cache(),
-		appCtx.Batch.Job(),
-		appCtx.Batch.Job().Cache(),
-		appCtx.RBAC.ClusterRoleBinding(),
-		appCtx.Core.ServiceAccount(),
-		appCtx.Core.ConfigMap(),
-		appCtx.Core.Secret(),
-		appCtx.Core.Secret().Cache(),
+		appCtx.Batch,
+		appCtx.Core,
+		appCtx.Helm,
+		appCtx.RBAC,
 	)
 
 	resources, _ := json.Marshal(chart.JobResources)
@@ -182,7 +174,6 @@ func newContext(ctx context.Context, cfg clientcmd.ClientConfig, systemNamespace
 	if err != nil {
 		return nil, err
 	}
-	corev := core.Core().V1()
 
 	batch, err := batch.NewFactoryFromConfigWithOptions(client, &generic.FactoryOptions{
 		SharedControllerFactory: scf,
@@ -191,7 +182,6 @@ func newContext(ctx context.Context, cfg clientcmd.ClientConfig, systemNamespace
 	if err != nil {
 		return nil, err
 	}
-	batchv := batch.Batch().V1()
 
 	rbac, err := rbac.NewFactoryFromConfigWithOptions(client, &generic.FactoryOptions{
 		SharedControllerFactory: scf,
@@ -200,7 +190,6 @@ func newContext(ctx context.Context, cfg clientcmd.ClientConfig, systemNamespace
 	if err != nil {
 		return nil, err
 	}
-	rbacv := rbac.Rbac().V1()
 
 	helm, err := helm.NewFactoryFromConfigWithOptions(client, &generic.FactoryOptions{
 		SharedControllerFactory: scf,
@@ -209,17 +198,16 @@ func newContext(ctx context.Context, cfg clientcmd.ClientConfig, systemNamespace
 	if err != nil {
 		return nil, err
 	}
-	helmv := helm.Helm().V1()
 
 	return &appContext{
-		Interface: helmv,
+		Apply: apply,
 
 		K8s:   k8s,
-		Core:  corev,
-		Batch: batchv,
-		RBAC:  rbacv,
+		Batch: batch.Batch().V1(),
+		Core:  core.Core().V1(),
+		Helm:  helm.Helm().V1(),
+		RBAC:  rbac.Rbac().V1(),
 
-		Apply:            apply,
 		EventBroadcaster: record.NewBroadcaster(record.WithContext(ctx)),
 
 		ClientConfig: cfg,
