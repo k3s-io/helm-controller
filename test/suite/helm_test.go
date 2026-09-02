@@ -12,6 +12,7 @@ import (
 
 	v1 "github.com/k3s-io/helm-controller/pkg/apis/helm.cattle.io/v1"
 	"github.com/k3s-io/helm-controller/test/framework"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,19 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			err = nil
 		}
 		return chart, err
+	}
+
+	// helper for returning nil job with no error if job for the chart is not found
+	getJobIgnoreNotFound := func(namespace, name string) (*batchv1.Job, error) {
+		jobName := "helm-install-" + name
+		job, err := framework.ClientSet.BatchV1().Jobs(namespace).Get(context.TODO(), jobName, metav1.GetOptions{})
+		if err != nil {
+			job = nil
+			if apierrors.IsNotFound(err) {
+				err = nil
+			}
+		}
+		return job, err
 	}
 
 	Context("When a HelmChart is created", func() {
@@ -1331,6 +1345,214 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 		})
 
 		AfterAll(func() {
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
+	Context("When dependent resource creation is blocked", func() {
+		var (
+			err        error
+			chart      *v1.HelmChart
+			policyName string = "block-configmap-create"
+		)
+		BeforeAll(func(ctx SpecContext) {
+			policy := &admissionregistrationv1.ValidatingAdmissionPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: policyName,
+				},
+				Spec: admissionregistrationv1.ValidatingAdmissionPolicySpec{
+					FailurePolicy: ptr.To(admissionregistrationv1.Fail),
+					MatchConstraints: &admissionregistrationv1.MatchResources{
+						ResourceRules: []admissionregistrationv1.NamedRuleWithOperations{{
+							RuleWithOperations: admissionregistrationv1.RuleWithOperations{
+								Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+								Rule: admissionregistrationv1.Rule{
+									APIGroups:   []string{""},
+									APIVersions: []string{"v1"},
+									Resources:   []string{"configmaps"},
+								},
+							},
+						}},
+					},
+					Validations: []admissionregistrationv1.Validation{{
+						Expression: "object.metadata.name.indexOf('chart-content-') == -1",
+						Message:    "No chart content configmaps allowed",
+						Reason:     ptr.To(metav1.StatusReasonForbidden),
+					}},
+				},
+			}
+			By("Creating ValidatingAdmissionPolicy")
+			_, err = framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicies().Create(ctx, policy, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get, 30*time.Second, 5*time.Second).WithArguments(ctx, policyName, metav1.GetOptions{}).Should(HaveField("Status.ObservedGeneration", BeEquivalentTo(1)))
+
+			policyBinding := &admissionregistrationv1.ValidatingAdmissionPolicyBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: policyName,
+				},
+				Spec: admissionregistrationv1.ValidatingAdmissionPolicyBindingSpec{
+					PolicyName:        policyName,
+					ValidationActions: []admissionregistrationv1.ValidationAction{admissionregistrationv1.Deny},
+				},
+			}
+			By("Creating ValidatingAdmissionPolicyBinding")
+			_, err = framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Create(ctx, policyBinding, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Get, 30*time.Second, 5*time.Second).WithArguments(ctx, policyName, metav1.GetOptions{}).Should(HaveField("ObjectMeta.Generation", BeEquivalentTo(1)))
+
+			// Wait another 5 seconds for the policy binding to become active. Bindings do not have ObservedGeneration to poll on.
+			time.Sleep(5 * time.Second)
+
+			chart = framework.NewHelmChart("traefik-example-configmap",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should not create the job", func(ctx SpecContext) {
+			// not using framework.GetJob(chart) here because it returns an error
+			// if the job name is not set in chart status, which it won't be yet because
+			// the handler is returning an error from apply.
+			Consistently(getJobIgnoreNotFound, 30*time.Second, 5*time.Second).WithArguments(chart.Namespace, chart.Name).Should(BeNil())
+		})
+
+		Specify("The admission policy is deleted", func(ctx SpecContext) {
+			err = framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Delete(ctx, policyName, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			err = framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicies().Delete(ctx, policyName, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should create a release for the chart", func() {
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+		})
+
+		AfterAll(func(ctx SpecContext) {
+			framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Delete(ctx, policyName, metav1.DeleteOptions{})
+			framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicies().Delete(ctx, policyName, metav1.DeleteOptions{})
+
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
+
+	Context("When dependent RBAC creation is blocked", func() {
+		var (
+			err        error
+			chart      *v1.HelmChart
+			policyName string = "block-serviceaccount-create"
+		)
+		BeforeAll(func(ctx SpecContext) {
+			policy := &admissionregistrationv1.ValidatingAdmissionPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: policyName,
+				},
+				Spec: admissionregistrationv1.ValidatingAdmissionPolicySpec{
+					FailurePolicy: ptr.To(admissionregistrationv1.Fail),
+					MatchConstraints: &admissionregistrationv1.MatchResources{
+						ResourceRules: []admissionregistrationv1.NamedRuleWithOperations{{
+							RuleWithOperations: admissionregistrationv1.RuleWithOperations{
+								Operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
+								Rule: admissionregistrationv1.Rule{
+									APIGroups:   []string{""},
+									APIVersions: []string{"v1"},
+									Resources:   []string{"serviceaccounts"},
+								},
+							},
+						}},
+					},
+					Validations: []admissionregistrationv1.Validation{{
+						Expression: "object.metadata.name.indexOf('helm-') == -1",
+						Message:    "No helm serviceaccounts allowed",
+						Reason:     ptr.To(metav1.StatusReasonForbidden),
+					}},
+				},
+			}
+			By("Creating ValidatingAdmissionPolicy")
+			_, err = framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicies().Create(ctx, policy, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicies().Get, 30*time.Second, 5*time.Second).WithArguments(ctx, policyName, metav1.GetOptions{}).Should(HaveField("Status.ObservedGeneration", BeEquivalentTo(1)))
+
+			policyBinding := &admissionregistrationv1.ValidatingAdmissionPolicyBinding{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: policyName,
+				},
+				Spec: admissionregistrationv1.ValidatingAdmissionPolicyBindingSpec{
+					PolicyName:        policyName,
+					ValidationActions: []admissionregistrationv1.ValidationAction{admissionregistrationv1.Deny},
+				},
+			}
+			By("Creating ValidatingAdmissionPolicyBinding")
+			_, err = framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Create(ctx, policyBinding, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Get, 30*time.Second, 5*time.Second).WithArguments(ctx, policyName, metav1.GetOptions{}).Should(HaveField("ObjectMeta.Generation", BeEquivalentTo(1)))
+
+			// Wait another 5 seconds for the policy binding to become active. Bindings do not have ObservedGeneration to poll on.
+			time.Sleep(5 * time.Second)
+
+			chart = framework.NewHelmChart("traefik-example-rbac",
+				"stable/traefik",
+				"1.86.1",
+				"v3",
+				"",
+				"metrics:\n  prometheus:\n    enabled: true\nkubernetes:\n  ingressEndpoint:\n    useDefaultPublishedService: true\nimage: docker.io/rancher/library-traefik\n",
+				map[string]intstr.IntOrString{
+					"rbac.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+					"ssl.enabled": {
+						Type:   intstr.String,
+						StrVal: "true",
+					},
+				})
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should not create the job", func(ctx SpecContext) {
+			// not using framework.GetJob(chart) here because it returns an error
+			// if the job name is not set in chart status, which it won't be yet because
+			// the handler is returning an error from apply.
+			Consistently(getJobIgnoreNotFound, 30*time.Second, 5*time.Second).WithArguments(chart.Namespace, chart.Name).Should(BeNil())
+		})
+
+		Specify("The admission policy is deleted", func(ctx SpecContext) {
+			err = framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Delete(ctx, policyName, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			err = framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicies().Delete(ctx, policyName, metav1.DeleteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should create a release for the chart", func() {
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(1))
+		})
+
+		AfterAll(func(ctx SpecContext) {
+			framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicyBindings().Delete(ctx, policyName, metav1.DeleteOptions{})
+			framework.ClientSet.AdmissionregistrationV1().ValidatingAdmissionPolicies().Delete(ctx, policyName, metav1.DeleteOptions{})
+
 			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 
