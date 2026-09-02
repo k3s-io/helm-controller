@@ -276,6 +276,7 @@ func (f *Framework) UpdateHelmChart(chart *v1.HelmChart, namespace string) (upda
 			return err
 		}
 		updated.Spec = chart.Spec
+		updated.Annotations = chart.Annotations
 		_, err = hcs.HelmCharts(namespace).Update(context.TODO(), updated, metav1.UpdateOptions{})
 		return err
 	}); err != nil {
