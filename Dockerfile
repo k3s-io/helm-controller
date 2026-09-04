@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine3.23 AS builder
+FROM golang:1.27-alpine3.23 AS builder
 
 RUN apk add --no-cache bash git gcc musl-dev
 
@@ -16,7 +16,7 @@ FROM scratch AS binary
 COPY --from=builder /src/bin/helm-controller /bin/
 
 # Dev stage for package, testing, and validation
-FROM golang:1.26-alpine3.23 AS dev
+FROM golang:1.27-alpine3.23 AS dev
 ARG ARCH
 ENV ARCH=$ARCH
 RUN apk add --no-cache bash git curl
