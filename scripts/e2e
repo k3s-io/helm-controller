@@ -3,7 +3,7 @@ set -ex
 
 K3S_WAIT_TIME=15
 K3S_NODE_NAME=helmtest-node1
-K3S_VERSION=v1.34.4-k3s1
+K3S_VERSION=v1.34.11-k3s1
 
 cd $(dirname $0)/..
 
@@ -42,5 +42,7 @@ trap teardown_k8s EXIT
 setup_k8s
 export KUBECONFIG=$PWD/kube_config_cluster.yml
 export HELM_CONTROLLER_IMAGE=$(cat bin/helm-controller-image.txt)
+export GINKGO_VERSION=$(go list -mod=readonly -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' github.com/onsi/ginkgo/v2)
+go install github.com/onsi/ginkgo/v2/ginkgo@${GINKGO_VERSION}
 load_helm_image
-go test ./test/suite/ -test.v -ginkgo.vv -ginkgo.fail-fast
+ginkgo run -v -timeout=30m -fail-fast ./test/suite/
