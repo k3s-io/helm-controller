@@ -56,6 +56,7 @@ const (
 	AnnotationManagedBy   = "helmcharts.cattle.io/managed-by"
 	AnnotationUnmanaged   = "helmcharts.helm.cattle.io/unmanaged"
 	AnnotationReplaceWait = "helmcharts.helm.cattle.io/replace-wait"
+	AnnotationReplaces    = "helmcharts.helm.cattle.io/replaces"
 
 	LabelChartName          = "helmcharts.helm.cattle.io/chart"
 	LabelNodeRolePrefix     = "node-role.kubernetes.io/"
@@ -662,6 +663,12 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 			c.logger.V(1).Info("Job is completed but release status or hash is incorrect",
 				"chart.name", fmt.Sprintf("%s/%s", chart.Namespace, chart.Name),
 			)
+			// if the job completed without creating a new release, the desired job matches
+			// the completed one and apply would leave it in place. Record the UID of the
+			// completed job so that apply replaces it.
+			if oldJob, err := c.jobCache.Get(job.Namespace, job.Name); err == nil {
+				metav1.SetMetaDataAnnotation(&job.ObjectMeta, AnnotationReplaces, string(oldJob.UID))
+			}
 		} else {
 			// if the delete job is complete and there is no release present,
 			// then there is nothing to be done

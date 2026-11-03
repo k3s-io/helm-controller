@@ -1653,4 +1653,84 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
 		})
 	})
+
+	Context("When a job completes without creating a new release", func() {
+		var (
+			err     error
+			chart   *v1.HelmChart
+			release *corev1.Secret
+		)
+		BeforeAll(func(ctx SpecContext) {
+			// the controller only reads the labels of the latest release
+			release = &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "sh.helm.release.v1.traefik-example-retry.v1",
+					Labels: map[string]string{"owner": "helm", "name": "traefik-example-retry", "status": "failed", "version": "1"},
+				},
+				Type: chartcontroller.ReleaseType,
+			}
+			release, err = framework.ClientSet.CoreV1().Secrets(framework.Namespace).Create(ctx, release, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			chart = framework.NewHelmChart("traefik-example-retry", "stable/traefik", "1.86.1", "v3", "", "", nil)
+			chart.Spec.FailurePolicy = "retry"
+			// use custom job manager so that the job doesn't get handled by core kubernetes job controller
+			chart.Annotations = map[string]string{chartcontroller.AnnotationJobManager: "helmcharts.helm.cattle.io/test-suite"}
+			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Specify("The job is resumed and completes without creating a new release", func(ctx SpecContext) {
+			jobs := framework.ClientSet.BatchV1().Jobs(chart.Namespace)
+			setConditions := func(job *batchv1.Job, types ...batchv1.JobConditionType) error {
+				job.Status.Conditions = nil
+				for _, t := range types {
+					job.Status.Conditions = append(job.Status.Conditions, batchv1.JobCondition{Type: t, Status: corev1.ConditionTrue, LastTransitionTime: metav1.Now()})
+				}
+				_, err := jobs.UpdateStatus(ctx, job, metav1.UpdateOptions{})
+				return err
+			}
+			Eventually(func(g Gomega) {
+				job, err := jobs.Get(ctx, "helm-install-"+chart.Name, metav1.GetOptions{})
+				g.Expect(err).NotTo(HaveOccurred())
+				job.Finalizers = []string{"helmcharts.helm.cattle.io/test-suite"}
+				job, err = jobs.Update(ctx, job, metav1.UpdateOptions{})
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(setConditions(job, batchv1.JobSuspended)).To(Succeed())
+			}, 30*time.Second, 5*time.Second).Should(Succeed())
+			Eventually(func(g Gomega) {
+				job, err := jobs.Get(ctx, "helm-install-"+chart.Name, metav1.GetOptions{})
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(job.Spec.Suspend).To(HaveValue(BeFalse()))
+				now := metav1.Now()
+				job.Status.StartTime = &now
+				job.Status.CompletionTime = &now
+				job.Status.Succeeded = 1
+				g.Expect(setConditions(job, batchv1.JobSuccessCriteriaMet, batchv1.JobComplete)).To(Succeed())
+			}, 30*time.Second, 5*time.Second).Should(Succeed())
+		})
+
+		It("Should delete the job to retry the upgrade", func() {
+			Eventually(getJobIgnoreNotFound, 30*time.Second, 5*time.Second).WithArguments(chart.Namespace, chart.Name).Should(HaveField("ObjectMeta.DeletionTimestamp", Not(BeNil())))
+		})
+
+		AfterAll(func(ctx SpecContext) {
+			framework.ClientSet.CoreV1().Secrets(release.Namespace).Delete(ctx, release.Name, metav1.DeleteOptions{})
+			if job, err := framework.ClientSet.BatchV1().Jobs(chart.Namespace).Get(ctx, "helm-install-"+chart.Name, metav1.GetOptions{}); err == nil {
+				job.Finalizers = nil
+				framework.ClientSet.BatchV1().Jobs(job.Namespace).Update(ctx, job, metav1.UpdateOptions{})
+			}
+			chart, err = framework.GetHelmChart(chart.Name, chart.Namespace)
+			Expect(err).NotTo(HaveOccurred())
+			delete(chart.Annotations, chartcontroller.AnnotationJobManager)
+			chart, err = framework.UpdateHelmChart(chart, chart.Namespace)
+			Expect(err).NotTo(HaveOccurred())
+
+			err = framework.DeleteHelmChart(chart.Name, chart.Namespace)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(getHelmChartIgnoreNotFound, 120*time.Second, 5*time.Second).WithArguments(chart.Name, chart.Namespace).Should(BeNil())
+			Eventually(framework.ListSecretReleases, 120*time.Second, 5*time.Second).WithArguments(chart).Should(HaveLen(0))
+		})
+	})
 })
