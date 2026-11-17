@@ -270,7 +270,7 @@ func (f *Framework) CreateHelmChart(chart *v1.HelmChart, namespace string) (*v1.
 
 func (f *Framework) UpdateHelmChart(chart *v1.HelmChart, namespace string) (updated *v1.HelmChart, err error) {
 	hcs := f.HelmClientSet.HelmV1()
-	if err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		updated, err = hcs.HelmCharts(namespace).Get(context.TODO(), chart.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
@@ -279,7 +279,8 @@ func (f *Framework) UpdateHelmChart(chart *v1.HelmChart, namespace string) (upda
 		updated.Annotations = chart.Annotations
 		_, err = hcs.HelmCharts(namespace).Update(context.TODO(), updated, metav1.UpdateOptions{})
 		return err
-	}); err != nil {
+	})
+	if err != nil {
 		updated = nil
 	}
 	return updated, err

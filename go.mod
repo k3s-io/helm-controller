@@ -2,6 +2,8 @@ module github.com/k3s-io/helm-controller
 
 go 1.26.7
 
+toolchain go1.27.4
+
 require (
 	github.com/go-logr/logr v1.4.4
 	github.com/onsi/ginkgo/v2 v2.32.1
