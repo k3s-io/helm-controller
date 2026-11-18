@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine3.23 AS builder
+FROM golang:1.27-alpine3.24 AS builder
 
 RUN apk add --no-cache bash git gcc musl-dev
 
@@ -16,15 +16,15 @@ FROM scratch AS binary
 COPY --from=builder /src/bin/helm-controller /bin/
 
 # Dev stage for package, testing, and validation
-FROM golang:1.26-alpine3.23 AS dev
+FROM golang:1.27-alpine3.24 AS dev
 ARG ARCH
 ENV ARCH=$ARCH
 RUN apk add --no-cache bash git curl
 RUN if [ "${ARCH}" != "arm" ]; then \
-    GOLANGCI_VERSION=v2.13.2 && \
+    GOLANGCI_VERSION=v2.15.0 && \
     case "${ARCH}" in \
-        amd64) GOLANGCI_SHA256="2277d43b98ec0054280f2ac26b53268bae97682444678a59a657dd565da021d6" ;; \
-        arm64) GOLANGCI_SHA256="a2a4e0065aa41be71f7c5ac90f271b61751331e5d04314e62afe4027855f0893" ;; \
+        amd64) GOLANGCI_SHA256="9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea" ;; \
+        arm64) GOLANGCI_SHA256="b4d8f17068b35ee6060cc2f69a16fb48740d706fbba81661c318649c114a6998" ;; \
         *) echo "Unsupported architecture for golangci-lint: ${ARCH}" && exit 1 ;; \
     esac && \
     cd /tmp && \
@@ -57,5 +57,8 @@ COPY --from=builder /src/pkg/crds/yaml/generated/ /
 COPY --from=builder /src/doc/helmchart.md /tmp_doc/
 
 FROM alpine:3.24 AS production
+# same as klipper-helm
+RUN apk --no-cache upgrade && \
+    apk del apk-tools zlib libcrypto3 libssl3
 COPY bin/helm-controller /usr/bin/
 CMD ["helm-controller"]
