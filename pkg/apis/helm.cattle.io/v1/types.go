@@ -97,11 +97,11 @@ type HelmChartSpec struct {
 	// Set to True if this chart is needed to bootstrap the cluster (Cloud Controller Manager, CNI, etc).
 	Bootstrap bool `json:"bootstrap,omitempty"`
 	// Set to True if helm should take ownership of existing resources when installing/upgrading the chart.
-	// Also changes the default for `serverSide` to `false`, as server-side apply cannot take ownership of fields managed by other clients.
+	// Setting this to true forces `serverSide` to `false`, as server-side apply cannot take ownership of fields managed by other clients.
 	// Helm CLI positional argument/flag: `--take-ownership`
 	TakeOwnership bool `json:"takeOwnership,omitempty"`
 	// Set to true if helm should enable server-side apply when updating objects. Defaults to `true` for install, and `auto` for upgrade.
-	// Defaults to `false` when `takeOwnership` is set.
+	// This value is ignored when `takeOwnership` is true.
 	// - `true` enables server-side apply.
 	// - `false` disables server-side apply.
 	// - `auto` enables server-side apply if the chart was installed with server-side apply enabled.
