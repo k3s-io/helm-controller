@@ -336,8 +336,14 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 					Namespace: framework.Namespace,
 				},
 				Spec: corev1.ServiceSpec{
-					ClusterIP: "None",
-					Type:      corev1.ServiceTypeClusterIP,
+					Type: corev1.ServiceTypeClusterIP,
+					Ports: []corev1.ServicePort{
+						{
+							Name:     "http",
+							Port:     80,
+							Protocol: corev1.ProtocolTCP,
+						},
+					},
 				},
 			}
 			service, err = framework.ClientSet.CoreV1().Services(framework.Namespace).Create(context.TODO(), service, metav1.CreateOptions{})
