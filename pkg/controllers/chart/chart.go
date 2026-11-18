@@ -556,7 +556,11 @@ func (c *Controller) getJobAndRelatedResources(chart *v1.HelmChart) (*batch.Job,
 	}
 
 	// set default for server-side apply (SSA)
+	// takeOwnership implies client-side apply, unless serverSide is set explicitly.
 	serverSide := v1.ServerSideAuto
+	if chart.Spec.TakeOwnership {
+		serverSide = v1.ServerSideFalse
+	}
 	if chart.Spec.ServerSide != "" {
 		serverSide = chart.Spec.ServerSide
 	}

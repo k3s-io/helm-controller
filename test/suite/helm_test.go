@@ -366,7 +366,6 @@ var _ = Describe("HelmChart Controller Tests", Ordered, func() {
 					},
 				})
 			chart.Spec.TakeOwnership = true
-			chart.Spec.ForceConflicts = true
 			chart, err = framework.CreateHelmChart(chart, framework.Namespace)
 			Expect(err).ToNot(HaveOccurred())
 		})
