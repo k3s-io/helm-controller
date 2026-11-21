@@ -8,5 +8,5 @@ resources:
 - manifests/rbac.yaml
 - manifests/deployment.yaml
 images:
-- name: rancher/helm-controller
-  newTag: v0.12.1
+- name: ghcr.io/k3s-io/helm-controller
+  newTag: latest

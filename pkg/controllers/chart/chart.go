@@ -74,7 +74,7 @@ const (
 
 var (
 	commaRE             = regexp.MustCompile(`\\*,`)
-	DefaultJobImage     = "rancher/klipper-helm:latest"
+	DefaultJobImage     = "ghcr.io/k3s-io/klipper-helm:latest"
 	JobTolerations      []corev1.Toleration
 	JobResources        *corev1.ResourceRequirements
 	defaultBackOffLimit = ptr.To(int32(1000))
