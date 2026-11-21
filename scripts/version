@@ -18,7 +18,7 @@ fi
 
 # For docker image
 TAG=${TAG:-${VERSION}${SUFFIX}}
-REPO=${REPO:-rancher}
+REPO=${REPO:-ghcr.io/k3s-io}
 
 # If tag contains dirty, set to dev
 if echo $TAG | grep -q dirty; then

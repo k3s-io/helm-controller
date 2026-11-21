@@ -18,7 +18,7 @@ spec:
       serviceAccountName: helm-controller
       containers:
       - name: helm-controller
-        image: rancher/helm-controller:v0.12.1
+        image: ghcr.io/k3s-io/helm-controller:latest
         command: ["helm-controller"]
         env:
         - name: NODE_NAME
@@ -30,4 +30,4 @@ spec:
             fieldRef:
               fieldPath: spec.serviceAccountName
         - name: DEFAULT_JOB_IMAGE
-          value: "ghcr.io/k3s-io/klipper-helm:v0.9.10-build20251111"
+          value: ghcr.io/k3s-io/klipper-helm:latest
